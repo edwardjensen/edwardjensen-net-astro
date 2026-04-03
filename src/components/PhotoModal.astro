@@ -1,0 +1,181 @@
+---
+/**
+ * PhotoModal component — the full-screen photo modal overlay.
+ * Ported from _includes/components/photo-modal.html.
+ * Behaviour is driven by public/assets/js/photo-gallery.js
+ * which uses window.photoGalleryInstance and DOM element IDs.
+ */
+---
+
+<div id="photo-modal-root">
+  <div
+    id="photo-modal-overlay"
+    class="fixed inset-0 bg-black z-[9999]"
+    style="display: none;"
+  >
+    <!-- Top toolbar -->
+    <div class="fixed top-0 left-0 right-0 z-[10001] flex justify-between items-center p-4">
+      <a
+        id="modal-back-link"
+        href="/photos/"
+        onclick="event.preventDefault(); window.photoGalleryInstance?.handleBackClick();"
+        class="bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2 transition-colors text-sm flex items-center gap-2"
+        title="Back"
+      >
+        <i class="ph ph-arrow-left"></i>
+        <span id="modal-back-link-text" class="hidden sm:inline">Back</span>
+      </a>
+
+      <div class="flex items-center gap-2">
+        <button
+          id="modal-details-toggle"
+          onclick="window.photoGalleryInstance?.toggleInfo()"
+          class="bg-white/10 hover:bg-white/20 text-white rounded-full p-3 transition-colors"
+          style="display: none;"
+          aria-label="Show info"
+          title="Show info (i)"
+        >
+          <i class="ph ph-info"></i>
+        </button>
+
+        <button
+          onclick="window.photoGalleryInstance?.closeModal(true)"
+          class="bg-white/10 hover:bg-white/20 text-white rounded-full p-3 transition-colors"
+          aria-label="Close and return to gallery"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main content area -->
+    <div id="modal-main-content" class="h-screen flex flex-col transition-all duration-300">
+      <!-- Image -->
+      <div
+        class="flex-1 flex items-center justify-center px-4 pt-20 pb-4 relative min-h-0"
+        onclick="window.photoGalleryInstance?.toggleInfo()"
+      >
+        <img
+          id="modal-photo-image"
+          src=""
+          alt=""
+          class="max-w-full max-h-full object-contain rounded-lg cursor-pointer"
+          onclick="event.stopPropagation(); window.photoGalleryInstance?.toggleInfo()"
+        />
+
+        <!-- Overlay gradient -->
+        <div
+          id="modal-photo-overlay-bg"
+          class="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none transition-opacity duration-300"
+          style="opacity: 1;"
+        ></div>
+
+        <!-- Overlay info (title, date, tags) -->
+        <div
+          id="modal-photo-overlay-info"
+          class="absolute bottom-4 left-4 right-4 pointer-events-none transition-opacity duration-300"
+          style="opacity: 1;"
+        >
+          <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 max-w-4xl mx-auto">
+            <div id="modal-overlay-title-container" class="flex-1 min-w-0"></div>
+            <div class="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
+              <div id="modal-overlay-tags" class="flex flex-wrap gap-1.5 justify-start sm:justify-end"></div>
+              <time id="modal-overlay-date" class="text-white text-sm bg-black px-2 py-0.5 rounded"></time>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation bar -->
+      <nav class="flex-shrink-0 bg-black py-4 px-4">
+        <div class="max-w-lg mx-auto flex justify-between items-center">
+          <button
+            id="modal-prev-btn"
+            onclick="window.photoGalleryInstance?.previous()"
+            class="flex items-center gap-2 text-white hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed px-4 py-2"
+            aria-label="Previous photo"
+          >
+            <i class="ph ph-caret-left text-lg"></i>
+            <span>Previous</span>
+          </button>
+
+          <span id="modal-photo-counter" class="text-white text-sm"></span>
+
+          <button
+            id="modal-next-btn"
+            onclick="window.photoGalleryInstance?.next()"
+            class="flex items-center gap-2 text-white hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed px-4 py-2"
+            aria-label="Next photo"
+          >
+            <span>Next</span>
+            <i class="ph ph-caret-right text-lg"></i>
+          </button>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Details panel (EXIF, location, tags) -->
+    <div
+      id="modal-details-panel"
+      class="fixed top-0 right-0 bottom-0 w-full sm:w-[480px] bg-brand-ink z-[10000] overflow-y-auto"
+      style="display: none;"
+    >
+      <!-- Panel header -->
+      <div class="sticky top-0 bg-brand-ink p-4 pt-20 border-b border-brand-grey/30 flex justify-between items-center">
+        <h2 class="text-white font-semibold">Photo Details</h2>
+        <button
+          onclick="window.photoGalleryInstance?.toggleInfo()"
+          class="text-white/70 hover:text-white p-2 transition-colors"
+          aria-label="Close details"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-5">
+        <!-- Title and date -->
+        <header>
+          <div id="modal-photo-title-container"></div>
+          <time id="modal-photo-date" class="text-brand-grey-light text-base block mb-3"></time>
+          <div id="modal-photo-tags" class="flex flex-wrap gap-2"></div>
+        </header>
+
+        <!-- Description -->
+        <div id="modal-photo-content" class="text-brand-smoke text-base" style="display: none;"></div>
+
+        <!-- EXIF Metadata -->
+        <div id="modal-exif-section" class="bg-brand-grey/20 rounded-lg" style="display: none;">
+          <div class="p-4 flex items-center gap-2 text-sm font-semibold text-white uppercase tracking-wide border-b border-brand-grey/30">
+            <i class="ph ph-camera"></i>
+            <span>Camera Details</span>
+          </div>
+          <dl id="modal-exif-grid" class="grid grid-cols-2 gap-4 text-sm p-4"></dl>
+        </div>
+
+        <!-- Location Map -->
+        <div id="modal-location-section" class="bg-brand-grey/20 rounded-lg" style="display: none;">
+          <div class="p-4 flex items-center gap-2 text-sm font-semibold text-white uppercase tracking-wide border-b border-brand-grey/30">
+            <i class="ph ph-map-pin"></i>
+            <span>Location</span>
+          </div>
+          <div class="p-4">
+            <p id="modal-location-name" class="text-brand-smoke text-base mb-3" style="display: none;"></p>
+            <div class="aspect-video w-full rounded-lg overflow-hidden bg-brand-grey/30">
+              <img
+                id="modal-location-map"
+                src=""
+                alt=""
+                class="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

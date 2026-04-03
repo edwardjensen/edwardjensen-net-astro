@@ -1,0 +1,63 @@
+---
+/**
+ * RecentPosts section component
+ * Shows last N posts (default 10), compact list with date, excerpt two-line clamp.
+ * Used on the homepage inside the "Writing" section card.
+ */
+import ItemList from "../ItemList.astro";
+import type { PostItem } from "../ItemList.astro";
+
+interface Props {
+  posts: PostItem[];
+  limit?: number;
+  buttonText?: string;
+}
+
+const { posts, limit = 10, buttonText = "View all posts" } = Astro.props;
+const limited = posts.slice(0, limit);
+---
+
+<div class="text-xl">
+  {limited.length > 0 ? (
+    <nav aria-label="Recent blog posts">
+      <ul role="list">
+        {limited.map((post, i) => (
+          <li class="mb-6 lg:mb-4">
+            <article>
+              <a href={post.url} class="block group" aria-describedby={`post-${i}-date`}>
+                <div class="flex flex-col lg:flex-row lg:justify-between items-start leading-tight md:leading-normal">
+                  <h3 class="uppercase font-semibold text-brand-ink dark:text-brand-smoke group-hover:text-brand-orange transition-colors duration-300">
+                    {post.title}
+                  </h3>
+                  <time
+                    id={`post-${i}-date`}
+                    datetime={post.date}
+                    class="text-muted lg:ml-5 lg:shrink-0 transition-colors duration-300"
+                  >
+                    {new Date(post.date).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </time>
+                </div>
+                {post.excerpt && (
+                  <p class="text-muted lg:line-clamp-2 transition-colors duration-300">
+                    {post.excerpt}
+                  </p>
+                )}
+              </a>
+            </article>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  ) : null}
+
+  <div class="mt-5 text-center">
+    <a href="/writing" class="btn-primary inline-flex items-center gap-2" aria-label="View all blog posts">
+      <i class="ph ph-pen" aria-hidden="true"></i>
+      {buttonText}
+    </a>
+  </div>
+</div>

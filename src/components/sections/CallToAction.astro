@@ -1,0 +1,19 @@
+---
+/**
+ * CallToAction section component
+ * Full-width centred section with social link buttons.
+ * Only shows social items that have a `text` property (same as Jekyll logic).
+ */
+import { social } from "../../data/social";
+---
+
+<div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+  {social
+    .filter((item) => item.text)
+    .map((item) => (
+      <a href={item.url} class="btn-primary inline-flex items-center gap-2" rel="me">
+        <i class={`ph ph-${item.icon}`} aria-hidden="true"></i>
+        {item.text}
+      </a>
+    ))}
+</div>

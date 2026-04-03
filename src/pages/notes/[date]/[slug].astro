@@ -1,0 +1,70 @@
+---
+import type { GetStaticPaths } from "astro";
+import ContentWrapper from "../../../layouts/ContentWrapper.astro";
+import { getWorkingNotes, workingNotePath } from "../../../lib/payload";
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const notes = await getWorkingNotes();
+
+  return notes.map((note) => {
+    const fullPath = workingNotePath(note.slug, note.date);
+    // fullPath = /notes/YYYY-MM-DD/slug  →  extract date and slug
+    const [, , datePart, slugPart] = fullPath.split("/");
+    return {
+      params: { date: datePart, slug: slugPart },
+      props: { note },
+    };
+  });
+};
+
+const { note } = Astro.props;
+
+const dateFormatted = new Date(note.date).toLocaleDateString("en-GB", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+---
+
+<ContentWrapper
+  title={note.title}
+  description={note.excerpt ?? undefined}
+  publishedAt={note.date}
+  updatedAt={note.updatedAt}
+  type="article"
+>
+  <link slot="head" rel="stylesheet" href="/assets/css/syntax.css" type="text/css" />
+
+  <article class="article-container">
+    <!-- Article Header -->
+    <header class="bg-brand-orange text-white px-8 lg:px-12 pt-8 lg:pt-12 pb-6 lg:pb-8 transition-colors duration-300">
+      <div class="space-y-4 text-left">
+        <h1 class="font-header font-bold text-3xl lg:text-4xl leading-tight tracking-wide">
+          {note.title}
+        </h1>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+          <div class="flex items-center gap-3">
+            <time datetime={note.date} class="text-white/80">{dateFormatted}</time>
+          </div>
+          {note.tags && note.tags.length > 0 && (
+            <div class="flex flex-wrap gap-2" role="list" aria-label="Note tags">
+              {note.tags.map((tag) => (
+                <span class="badge-accent-dark" role="listitem">#{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+
+    <!-- Article Content -->
+    <div class="p-8 lg:p-12">
+      <div class="prose dark:prose-invert max-w-none" set:html={note.contentHtml} />
+    </div>
+
+    <!-- Footer -->
+    <footer class="section-bg border-t border-brand-grey/20 dark:border-brand-grey/30 px-8 lg:px-12 py-6 flex justify-between items-center transition-colors duration-300">
+      <a href="/notes/" class="link-accent font-semibold">← Back to Working Notes</a>
+    </footer>
+  </article>
+</ContentWrapper>

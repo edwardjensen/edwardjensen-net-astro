@@ -1,0 +1,88 @@
+---
+/**
+ * Content navigation component (previous/next).
+ * Mirrors content-navigation.html from the Jekyll site.
+ *
+ * variant: 'post' — "Previously..." / "More recently..." with titles and links
+ * variant: 'photo' — Simple left/right arrows with muted style
+ */
+
+interface NavigationItem {
+  title: string;
+  url: string;
+}
+
+interface Props {
+  /** The older/earlier item. In post context, "Previously..." */
+  prev: NavigationItem | null;
+  /** The newer/later item. In post context, "More recently..." */
+  next: NavigationItem | null;
+  variant?: "post" | "photo";
+}
+
+const { prev, next, variant = "post" } = Astro.props;
+---
+
+{
+  variant === "photo" ? (
+    <nav
+      class="flex flex-row justify-between items-center mt-8 pt-6 border-t border-brand-grey/20 dark:border-brand-grey/30 transition-colors duration-300"
+      role="navigation"
+      aria-label="Photo navigation"
+    >
+      {prev?.url ? (
+        <a
+          href={prev.url}
+          class="group flex items-center gap-2 text-muted hover:text-body transition-colors duration-200"
+          aria-label={`Previous photo: ${prev.title}`}
+        >
+          <i
+            class="ph ph-arrow-left text-lg group-hover:-translate-x-1 transition-transform duration-200"
+            aria-hidden="true"
+          />
+          <span class="text-sm hidden sm:inline">Previous</span>
+        </a>
+      ) : (
+        <span />
+      )}
+      {next?.url ? (
+        <a
+          href={next.url}
+          class="group flex items-center gap-2 text-muted hover:text-body transition-colors duration-200"
+          aria-label={`Next photo: ${next.title}`}
+        >
+          <span class="text-sm hidden sm:inline">Next</span>
+          <i
+            class="ph ph-arrow-right text-lg group-hover:translate-x-1 transition-transform duration-200"
+            aria-hidden="true"
+          />
+        </a>
+      ) : (
+        <span />
+      )}
+    </nav>
+  ) : (
+    <div class="flex flex-row justify-between mt-5">
+      {prev?.url && (
+        <div class="flex flex-col leading-none">
+          <div class="italic">Previously...</div>
+          <a href={prev.url} class="font-semibold link-accent underline">
+            <i class="ph ph-arrow-left" aria-hidden="true" />
+            {" "}{prev.title}
+          </a>
+        </div>
+      )}
+      {next?.url && (
+        <div
+          class={`flex flex-col leading-none${!prev?.url ? " ml-auto" : ""}`}
+        >
+          <div class="italic">More recently...</div>
+          <a href={next.url} class="font-semibold link-accent underline">
+            {next.title}{" "}
+            <i class="ph ph-arrow-right" aria-hidden="true" />
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}

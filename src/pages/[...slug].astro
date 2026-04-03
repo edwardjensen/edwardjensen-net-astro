@@ -1,0 +1,61 @@
+---
+/**
+ * Dynamic CMS pages route.
+ *
+ * Handles all pages from the Payload CMS "pages" collection.
+ * Each page has a custom permalink field (e.g. '/about/', '/abriefhistory/').
+ * The permalink is stripped of leading/trailing slashes to form the route slug.
+ *
+ * Routes generated: /about/, /abriefhistory/, etc.
+ */
+import type { GetStaticPaths } from "astro";
+import ContentWrapper from "../layouts/ContentWrapper.astro";
+import { getPages } from "../lib/payload";
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const pages = await getPages();
+
+  return pages
+    .filter((p) => p._status === "published" && p.permalink)
+    .map((page) => {
+      // Strip leading/trailing slashes from permalink to use as slug
+      // e.g. '/about/' -> 'about', '/a/b/' -> 'a/b'
+      const slug = page.permalink.replace(/^\/|\/$/g, "");
+      return {
+        params: { slug },
+        props: { page },
+      };
+    });
+};
+
+const { page } = Astro.props;
+---
+
+<ContentWrapper
+  title={page.title}
+  description={page.contentHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160)}
+  image={page.image?.url}
+>
+  <article class="article-container">
+    <!-- Page header -->
+    <div class="page-section-header px-8 lg:px-12 pt-8 lg:pt-10 pb-6 lg:pb-8">
+      {page.image && (
+        <div class="mb-6">
+          <img
+            src={page.image.url}
+            alt={page.image.alt}
+            class="w-24 h-24 rounded-full object-cover"
+            width={page.image.width}
+            height={page.image.height}
+          />
+        </div>
+      )}
+      <h1 class="font-header font-bold text-3xl lg:text-4xl text-heading">{page.title}</h1>
+    </div>
+
+    <!-- Page content -->
+    <div class="p-8 lg:p-12">
+      <div class="prose dark:prose-invert max-w-none" set:html={page.contentHtml} />
+    </div>
+  </article>
+</ContentWrapper>

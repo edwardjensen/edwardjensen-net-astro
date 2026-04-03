@@ -1,0 +1,280 @@
+---
+/**
+ * Site search page — /search/
+ * Lunr.js-based full-text search using the /search-index.json endpoint.
+ * Replaces Jekyll's Alpine.js-dependent search with vanilla JS.
+ */
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+---
+
+<ContentWrapper
+  title="Search"
+  description="Search across posts, notes, and photography on this site."
+>
+  <div class="max-w-4xl mx-auto px-4 lg:px-8 py-12 lg:py-16">
+    <!-- Page header -->
+    <div class="mb-12">
+      <h1 class="text-4xl font-bold text-heading mb-4 lowercase">Search</h1>
+      <p class="text-lg text-muted">
+        Search across posts, notes, and photography on this site.
+      </p>
+    </div>
+
+    <!-- Search interface -->
+    <div id="search-interface" class="bg-brand-grey/10 dark:bg-brand-grey/20 rounded-lg p-6 mb-12">
+      <!-- Search input -->
+      <div class="relative">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="search posts, notes, and photos..."
+          aria-label="Search site content"
+          class="input-default"
+          autocomplete="off"
+        />
+        <!-- Search icon -->
+        <svg
+          class="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-brand-grey-dark dark:text-brand-grey-light pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <!-- Clear button -->
+        <button
+          id="search-clear"
+          aria-label="Clear search"
+          style="display:none"
+          class="absolute right-12 top-1/2 transform -translate-y-1/2 text-brand-grey-dark dark:text-brand-grey-light hover:text-brand-chestnut transition-colors"
+        >
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Status line -->
+      <div id="search-status" class="mt-4 text-sm text-muted">
+        Enter a search query to begin.
+      </div>
+
+      <!-- Results -->
+      <div id="search-results" class="mt-8 hidden"></div>
+    </div>
+
+    <!-- Search tips (hidden once a search is active) -->
+    <div id="search-tips" class="info-box text-center">
+      <h2 class="text-lg font-semibold text-heading mb-2 lowercase">Search tips</h2>
+      <ul class="text-sm text-body space-y-1">
+        <li>• Search for keywords, titles, or topics</li>
+        <li>• Results include posts, notes, and photography</li>
+        <li>• Press <kbd class="px-2 py-1 bg-brand-grey/15 dark:bg-brand-grey/25 rounded text-xs">Esc</kbd> to clear the search box</li>
+      </ul>
+    </div>
+  </div>
+</ContentWrapper>
+
+<!-- Lunr.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lunr.js/2.3.9/lunr.min.js" is:inline></script>
+<!-- Search handler -->
+<script src="/assets/js/search.js" is:inline></script>
+
+<script>
+// Standalone search page controller — replaces Alpine.js-based search handler.
+(function () {
+  const input = document.getElementById("search-input");
+  const clearBtn = document.getElementById("search-clear");
+  const statusEl = document.getElementById("search-status");
+  const resultsEl = document.getElementById("search-results");
+  const tipsEl = document.getElementById("search-tips");
+
+  if (!input || !clearBtn || !statusEl || !resultsEl) return;
+
+  let lunrIndex = null;
+  let dataMap = {};
+  let searchTimeout = null;
+  let ready = false;
+
+  // Load search index
+  fetch("/search-index.json")
+    .then((r) => r.json())
+    .then((searchData) => {
+      searchData.documents.forEach((doc) => {
+        dataMap[doc.id] = doc;
+      });
+
+      // Build Lunr index — must wait for lunr to be available
+      function buildIndex() {
+        if (typeof lunr === "undefined") {
+          setTimeout(buildIndex, 50);
+          return;
+        }
+        lunrIndex = lunr(function () {
+          this.ref("id");
+          this.field("title", { boost: 10 });
+          this.field("excerpt", { boost: 5 });
+          this.field("content");
+          this.field("type");
+          searchData.documents.forEach((doc) => this.add(doc));
+        });
+        ready = true;
+        // If the user typed before index was ready, run search now
+        if (input.value.trim().length > 0) {
+          performSearch(input.value.trim());
+        }
+      }
+      buildIndex();
+    })
+    .catch((err) => {
+      console.error("Failed to load search index:", err);
+      statusEl.textContent = "Search index unavailable.";
+    });
+
+  function decodeHtml(html) {
+    const txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+  }
+
+  function typeBadgeClass(type) {
+    if (type === "post") return "bg-brand-orange/20 text-brand-orange-dark";
+    if (type === "photography") return "bg-brand-chestnut/20 text-brand-chestnut";
+    return "bg-brand-grey/20 text-brand-grey-dark dark:text-brand-grey-light";
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  function renderResults(results, query) {
+    if (results.length === 0) {
+      resultsEl.innerHTML = `
+        <div class="py-8 text-center">
+          <p class="text-muted mb-2">No results found for "${decodeHtml(query)}"</p>
+          <p class="text-sm text-muted">Try different keywords or browse the <a href="/writing/" class="link-accent">latest posts</a></p>
+        </div>`;
+    } else {
+      const items = results
+        .map((r) => {
+          const doc = dataMap[r.ref];
+          if (!doc) return "";
+          const dateHtml = doc.date
+            ? `<time class="text-xs text-muted">${formatDate(doc.date)}</time>`
+            : "";
+          return `<article class="border-l-4 border-brand-orange pl-4 pb-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded ${typeBadgeClass(doc.type)}">${doc.type}</span>
+              ${dateHtml}
+            </div>
+            <h3 class="text-lg font-semibold mb-2">
+              <a href="${doc.url}" class="link-accent hover:underline">${decodeHtml(doc.title)}</a>
+            </h3>
+            <p class="text-body mb-3">${decodeHtml(doc.excerpt)}…</p>
+            <a href="${doc.url}" class="inline-flex items-center link-accent font-semibold text-sm">
+              <span>read more</span>
+              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </a>
+          </article>`;
+        })
+        .join("");
+
+      resultsEl.innerHTML = `
+        <div class="text-sm text-muted mb-4">${results.length} result${results.length !== 1 ? "s" : ""} found</div>
+        <div class="space-y-6">${items}</div>`;
+    }
+    resultsEl.classList.remove("hidden");
+  }
+
+  function performSearch(query) {
+    if (!ready || !lunrIndex) {
+      statusEl.textContent = "Loading search index...";
+      return;
+    }
+    if (!query) {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+      statusEl.textContent = "Enter a search query to begin.";
+      return;
+    }
+
+    statusEl.innerHTML = `<span class="flex items-center gap-1"><span class="inline-block w-2 h-2 bg-brand-orange rounded-full animate-pulse"></span> Searching…</span>`;
+
+    try {
+      const enhanced = query
+        .split(" ")
+        .map((t) => t + "*")
+        .join(" ");
+      const results = lunrIndex.search(enhanced);
+      renderResults(results, query);
+    } catch {
+      try {
+        const results = lunrIndex.search(query);
+        renderResults(results, query);
+      } catch (e) {
+        console.error("Search error:", e);
+        resultsEl.innerHTML = `<p class="text-muted">Search error. Please try again.</p>`;
+        resultsEl.classList.remove("hidden");
+      }
+    }
+
+    statusEl.textContent = "";
+  }
+
+  // Input handler with debounce
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    clearBtn.style.display = q.length > 0 ? "block" : "none";
+    tipsEl && (tipsEl.style.display = q.length > 0 ? "none" : "");
+
+    clearTimeout(searchTimeout);
+    if (q.length === 0) {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+      statusEl.textContent = "Enter a search query to begin.";
+      return;
+    }
+    searchTimeout = setTimeout(() => performSearch(q), 1500);
+  });
+
+  // Esc to clear
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      input.value = "";
+      input.dispatchEvent(new Event("input"));
+    }
+  });
+
+  // Clear button
+  clearBtn.addEventListener("click", () => {
+    input.value = "";
+    input.dispatchEvent(new Event("input"));
+    input.focus();
+  });
+
+  // Pre-fill from URL ?q= param
+  const urlParams = new URLSearchParams(window.location.search);
+  const q = urlParams.get("q");
+  if (q) {
+    input.value = q;
+    input.dispatchEvent(new Event("input"));
+  }
+})();
+</script>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+</style>

@@ -1,0 +1,103 @@
+---
+/**
+ * Single historic post — /archive/posts/[slug]
+ * Retired posts preserved as archive examples.
+ */
+import type { GetStaticPaths } from "astro";
+import ContentWrapper from "../../../layouts/ContentWrapper.astro";
+import { getHistoricPosts, historicPostPath } from "../../../lib/payload";
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const posts = await getHistoricPosts();
+
+  return posts
+    .filter((p) => p._status === "published")
+    .map((post) => ({
+      params: { slug: post.slug },
+      props: { post },
+    }));
+};
+
+const { post } = Astro.props;
+
+const displayDate = new Date(post.date).toLocaleDateString("en-US", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+const isoDate = new Date(post.date).toISOString();
+---
+
+<ContentWrapper
+  title={post.title}
+  description={post.excerpt ? post.excerpt.replace(/<[^>]+>/g, "").slice(0, 160) : post.title}
+  image={post.image?.url}
+>
+  <article class="article-container" itemscope itemtype="http://schema.org/Article">
+    <!-- Retired notice banner -->
+    <div class="bg-brand-grey/15 dark:bg-brand-grey/20 border-l-4 border-brand-grey px-6 py-4 text-sm text-muted">
+      <strong>This is an archived post.</strong>{" "}
+      <a href="/archive/" class="link-accent">Read about why some posts have been retired.</a>
+    </div>
+
+    <!-- Post header -->
+    <header class="page-section-header px-8 lg:px-12 pt-8 pb-6">
+      <h1
+        class="font-header font-bold text-3xl lg:text-5xl leading-tight tracking-wide text-heading"
+        itemprop="headline"
+      >
+        {post.title}
+      </h1>
+      <div class="flex items-center gap-4 mt-4 text-sm text-muted">
+        <time datetime={isoDate} itemprop="datePublished">{displayDate}</time>
+      </div>
+    </header>
+
+    <!-- Featured image -->
+    {post.image && post.showImage && (
+      <figure class="px-8 lg:px-12 mb-8">
+        <img
+          src={post.image.url}
+          alt={post.image.alt || post.title}
+          class="w-full rounded-lg"
+          loading="eager"
+        />
+      </figure>
+    )}
+
+    <!-- Post content -->
+    <div class="px-8 lg:px-12 pb-8 lg:pb-12">
+      <div
+        class="prose dark:prose-invert max-w-none"
+        itemprop="articleBody"
+        set:html={post.contentHtml}
+      />
+
+      <!-- Tags -->
+      {post.tags?.length > 0 && (
+        <div class="mt-8 pt-6 border-t border-brand-grey/20 dark:border-brand-grey/30">
+          <div class="flex flex-wrap gap-2">
+            {post.tags.map((tag) => (
+              <span class="badge-accent text-xs">{tag}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <!-- Post credits -->
+      {post.postCredits && (
+        <div
+          class="mt-8 p-4 bg-brand-grey/10 dark:bg-brand-grey/20 rounded-lg text-sm"
+          set:html={post.postCredits}
+        />
+      )}
+
+      <!-- Back to archive link -->
+      <div class="mt-8 pt-6 border-t border-brand-grey/20 dark:border-brand-grey/30">
+        <a href="/archive/" class="link-accent font-semibold">← Back to the archive</a>
+      </div>
+    </div>
+  </article>
+</ContentWrapper>

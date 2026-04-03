@@ -1,0 +1,140 @@
+---
+/**
+ * Working notes paginated pages — /notes/page/2/, /notes/page/3/, etc.
+ * Page 1 is handled by /notes/index.astro
+ */
+import type { GetStaticPaths } from "astro";
+import ContentWrapper from "../../../layouts/ContentWrapper.astro";
+import WorkingNoteCard from "../../../components/WorkingNoteCard.astro";
+import { getWorkingNotes, workingNotePath } from "../../../lib/payload";
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const NOTES_PER_PAGE = 20;
+  const notes = await getWorkingNotes();
+  const sorted = [...notes]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .map((n) => ({ ...n, url: workingNotePath(n.slug, n.date) }));
+
+  const totalPages = Math.ceil(sorted.length / NOTES_PER_PAGE);
+
+  // Generate routes for pages 2..N (page 1 is index.astro)
+  return Array.from({ length: totalPages - 1 }, (_, i) => {
+    const pageNum = i + 2;
+    const pageNotes = sorted.slice((pageNum - 1) * NOTES_PER_PAGE, pageNum * NOTES_PER_PAGE);
+    return {
+      params: { page: String(pageNum) },
+      props: { pageNotes, pageNum, totalPages, totalNotes: sorted.length },
+    };
+  });
+};
+
+const { pageNotes, pageNum, totalPages, totalNotes } = Astro.props;
+
+function buildPageNums(current: number, last: number): (number | null)[] {
+  const nums: (number | null)[] = [];
+  for (let i = 1; i <= last; i++) {
+    if (i === 1 || i === last || Math.abs(i - current) <= 2) {
+      nums.push(i);
+    } else if (nums[nums.length - 1] !== null) {
+      nums.push(null); // ellipsis marker
+    }
+  }
+  return nums;
+}
+
+const pageNums = buildPageNums(pageNum, totalPages);
+---
+
+<ContentWrapper
+  title={`Working Notes — Page ${pageNum}`}
+  description="Short observations, experiments, and in-progress thinking."
+>
+
+  <div class="article-container">
+    <!-- Page Header -->
+    <div class="bg-brand-orange text-white px-8 lg:px-12 pt-8 lg:pt-10 pb-6 lg:pb-8">
+      <div class="flex items-center gap-4">
+        <div class="hidden md:flex w-12 h-12 bg-white/20 rounded-xl items-center justify-center" aria-hidden="true">
+          <i class="ph ph-notebook text-white text-xl" aria-hidden="true"></i>
+        </div>
+        <div>
+          <h1 class="font-header font-bold text-3xl lg:text-4xl text-white lowercase">Working Notes</h1>
+          <p class="text-white/80 mt-1 lowercase">Short observations, experiments, and in-progress thinking</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-8 lg:p-12">
+      <div class="space-y-4">
+        {pageNotes.map((note: any, i: number) => (
+          <WorkingNoteCard
+            id={note.id}
+            index={i + 1}
+            title={note.title}
+            date={note.date}
+            tags={note.tags ?? []}
+            contentHtml={note.contentHtml}
+            url={note.url}
+          />
+        ))}
+      </div>
+
+      <!-- Pagination -->
+      <nav aria-label="Working notes pagination" class="mt-12">
+        <div class="flex items-center justify-center gap-2 flex-wrap">
+          {pageNum > 1 && (
+            <a
+              href={pageNum === 2 ? "/notes/" : `/notes/page/${pageNum - 1}/`}
+              class="btn-secondary px-4 py-2 text-sm"
+              aria-label="Previous page"
+            >
+              ← Previous
+            </a>
+          )}
+
+          {pageNums.map((num) =>
+            num === null ? (
+              <span class="px-2 text-muted">…</span>
+            ) : (
+              <a
+                href={num === 1 ? "/notes/" : `/notes/page/${num}/`}
+                class:list={[
+                  "px-3 py-2 rounded text-sm font-semibold transition-colors",
+                  num === pageNum
+                    ? "bg-brand-orange text-white"
+                    : "text-body hover:text-brand-chestnut",
+                ]}
+                aria-label={`Page ${num}`}
+                aria-current={num === pageNum ? "page" : undefined}
+              >
+                {num}
+              </a>
+            )
+          )}
+
+          {pageNum < totalPages && (
+            <a href={`/notes/page/${pageNum + 1}/`} class="btn-secondary px-4 py-2 text-sm" aria-label="Next page">
+              Next →
+            </a>
+          )}
+        </div>
+        <p class="text-center text-sm text-muted mt-4">
+          Page {pageNum} of {totalPages} — {totalNotes} notes total
+        </p>
+      </nav>
+
+      <!-- Feed links footer -->
+      <div class="mt-12 pt-8 border-t border-brand-grey/20 dark:border-brand-grey/30 flex flex-wrap gap-6 justify-center items-center">
+        <a href="/feeds/notes.xml" class="inline-flex items-center gap-2 link-accent font-semibold" title="Subscribe to Working Notes RSS feed">
+          <i class="ph ph-rss text-lg" aria-hidden="true"></i>
+          <span>RSS Feed</span>
+        </a>
+        <a href="/feeds/notes.json" class="inline-flex items-center gap-2 link-accent font-semibold" title="Subscribe to Working Notes JSON feed">
+          <i class="ph ph-brackets-curly text-lg" aria-hidden="true"></i>
+          <span>JSON Feed</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+</ContentWrapper>

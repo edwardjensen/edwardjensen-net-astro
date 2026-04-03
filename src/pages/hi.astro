@@ -1,0 +1,97 @@
+---
+/**
+ * /hi landing page — "Let's Connect"
+ * Uses the LandingPage layout with sections from Jekyll's _sections_landing/ collection.
+ * Mirrors: sections_landing/call-to-action, recent-featured-posts, recent-photos
+ */
+import LandingPage from "../layouts/LandingPage.astro";
+import SectionCard from "../components/SectionCard.astro";
+import CallToAction from "../components/sections/CallToAction.astro";
+import RecentPosts from "../components/sections/RecentPosts.astro";
+import PhotoStrip from "../components/sections/PhotoStrip.astro";
+import { getPosts, getPhotography, postPath, photoPath } from "../lib/payload";
+import type { PostItem } from "../components/ItemList.astro";
+
+const posts = await getPosts();
+const photos = await getPhotography();
+
+// Featured/landing-featured posts, newest first
+const featuredPosts = posts
+  .filter((p) => p._status === "published" && p.landingFeatured)
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+const postItems: PostItem[] = featuredPosts.slice(0, 3).map((p) => ({
+  title: p.title,
+  url: postPath(p.slug, p.date),
+  date: p.date,
+  excerpt: p.excerpt ? p.excerpt.replace(/<[^>]+>/g, "") : undefined,
+}));
+
+const sortedPhotos = [...photos].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
+  url: photoPath(p.slug, p.date),
+  title: p.title,
+  imageUrl: p.image?.url ?? "",
+  imageAlt: p.image?.alt ?? p.title,
+}));
+---
+
+<LandingPage
+  title="Let's Connect — Edward Jensen"
+  description="My work focuses on harnessing technology and data to amplify mission impact for nonprofit organizations."
+  image="/assets/images/bluebackground.png"
+>
+  <!-- Intro prose -->
+  <Fragment>
+    <h1>It's nice to meet you! I'm Edward Jensen.</h1>
+    <p>
+      My work focuses on harnessing technology and data to amplify mission impact for nonprofit
+      organizations. I am the Director of Information Technology for{" "}
+      <a href="https://www.meda.net/">MEDA, the Metropolitan Economic Development Association</a>, in
+      Minneapolis.
+    </p>
+    <p>
+      On these pages, I share insights from inside the work. As a nonprofit IT leader, I focus on
+      technology strategy, institutional resilience, knowledge enterprise development: the tactical
+      realities of advancing IT within mission-driven organizations.
+    </p>
+  </Fragment>
+
+  <Fragment slot="sections">
+    <!-- Order 20: Featured posts -->
+    <div class="max-w-7xl mx-auto px-4 lg:px-8">
+      <SectionCard
+        section="Here's some of what I write about."
+        icon="pen"
+        subheader="These essays represent my approach to nonprofit technology strategy and the challenges I often encounter in my work."
+      >
+        {postItems.length > 0 ? (
+          <RecentPosts posts={postItems} limit={3} showExcerpt />
+        ) : (
+          <RecentPosts posts={[]} limit={3} />
+        )}
+        <div class="mt-6 text-center">
+          <a href="/writing/" class="btn-secondary">Explore the full archive here.</a>
+        </div>
+      </SectionCard>
+    </div>
+
+    <!-- Order 90: Call to action — "Let's stay connected!" -->
+    <section
+      class="flex flex-col items-center justify-center text-center max-w-7xl mx-auto px-4 lg:px-8 py-6 mb-8"
+      aria-label="Call to Action"
+    >
+      <h2 class="text-3xl mb-6 font-header font-bold text-heading">Let's stay connected!</h2>
+      <div class="text-xl">
+        <CallToAction />
+      </div>
+    </section>
+
+    <!-- Order 95: Photography strip -->
+    <section class="w-full pt-8 lg:pt-12 pb-12 lg:pb-16" aria-label="Photography">
+      <PhotoStrip photos={photoItems} />
+    </section>
+  </Fragment>
+</LandingPage>

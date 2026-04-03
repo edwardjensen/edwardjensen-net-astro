@@ -1,0 +1,85 @@
+---
+/**
+ * Featured tags index — /tags/
+ * Lists all featured tag landing pages with thumbnails, descriptions, and post counts.
+ */
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import { getPosts } from "../../lib/payload";
+import { featuredTags } from "../../data/featured-tags";
+
+const allPosts = await getPosts();
+
+// Count posts per tag
+const tagCounts = new Map<string, number>();
+for (const tag of featuredTags) {
+  const count = allPosts.filter(
+    (p) => p._status === "published" && p.tags?.includes(tag.tag)
+  ).length;
+  tagCounts.set(tag.tag, count);
+}
+
+const sortedTags = [...featuredTags].sort((a, b) => a.title.localeCompare(b.title));
+---
+
+<ContentWrapper
+  title="Featured Series"
+  description="Curated collections of posts around key themes."
+>
+  <article class="article-container">
+    <!-- Header -->
+    <div class="page-section-header px-8 lg:px-12 pt-8 pb-6">
+      <div class="flex items-center gap-4">
+        <div class="hidden md:flex w-12 h-12 bg-brand-orange rounded-xl items-center justify-center flex-shrink-0" aria-hidden="true">
+          <i class="ph ph-tag text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="font-header font-bold text-3xl lg:text-4xl text-heading">Featured Series</h1>
+          <p class="text-muted mt-1">Curated collections of posts around key themes</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tags list -->
+    <div class="p-8 lg:p-12">
+      {sortedTags.length > 0 ? (
+        <div class="space-y-6">
+          {sortedTags.map((tag) => {
+            const count = tagCounts.get(tag.tag) ?? 0;
+            return (
+              <article class="group border-b border-brand-grey/20 dark:border-brand-grey/30 pb-6 last:border-b-0 last:pb-0">
+                <a
+                  href={`/tags/${tag.tag}/`}
+                  class="flex flex-col md:flex-row md:items-center gap-4 list-item-hover p-4 -m-4"
+                >
+                  {tag.image && (
+                    <div class="flex-shrink-0 w-full md:w-48 h-32 overflow-hidden rounded-lg">
+                      <img
+                        src={tag.image}
+                        alt=""
+                        class="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div class="flex-grow">
+                    <h2 class="text-heading group-hover:text-brand-chestnut font-bold text-lg transition-colors duration-200">
+                      {tag.title}
+                    </h2>
+                    <p class="text-sm text-muted mt-1">
+                      {count} post{count !== 1 ? "s" : ""}
+                    </p>
+                    {tag.description && (
+                      <p class="text-sm text-muted mt-2">{tag.description}</p>
+                    )}
+                  </div>
+                </a>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p class="text-center text-muted py-8">No featured series available yet.</p>
+      )}
+    </div>
+  </article>
+</ContentWrapper>

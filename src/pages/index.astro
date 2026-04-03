@@ -1,11 +1,84 @@
 ---
-import ContentWrapper from "../layouts/ContentWrapper.astro";
+import LandingPage from "../layouts/LandingPage.astro";
+import SectionCard from "../components/SectionCard.astro";
+import CallToAction from "../components/sections/CallToAction.astro";
+import RecentPosts from "../components/sections/RecentPosts.astro";
+import PhotoStrip from "../components/sections/PhotoStrip.astro";
+import { getPosts, getPhotography, postPath, photoPath } from "../lib/payload";
+import type { PostItem } from "../components/ItemList.astro";
+
+const posts = await getPosts();
+const photos = await getPhotography();
+
+// Deduplicate by title (same as Jekyll `uniq: 'title'`) then sort newest-first
+const seen = new Set<string>();
+const uniquePosts = posts
+  .filter((p) => {
+    if (seen.has(p.title)) return false;
+    seen.add(p.title);
+    return true;
+  })
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+const recentPostItems: PostItem[] = uniquePosts.slice(0, 10).map((p) => ({
+  title: p.title,
+  url: postPath(p.slug, p.date),
+  date: p.date,
+  // Strip HTML tags from excerpt field if present
+  excerpt: p.excerpt ? p.excerpt.replace(/<[^>]+>/g, "") : undefined,
+}));
+
+// Sort photos newest-first
+const sortedPhotos = [...photos].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
+  url: photoPath(p.slug, p.date),
+  title: p.title,
+  imageUrl: p.image?.url ?? "",
+  imageAlt: p.image?.alt ?? p.title,
+}));
 ---
 
-<ContentWrapper title="Home">
-  <div class="text-body">
-    <h1 class="font-header text-4xl font-bold text-heading mb-4 lowercase">edward jensen</h1>
-    <p class="text-muted">Phase 1 scaffold complete — build pipeline, design system, and base layout.</p>
-  </div>
-</ContentWrapper>
+<LandingPage
+  title="Edward Jensen"
+  description="Insights from inside the work of nonprofit IT: strategy, leadership, and institutional resilience—along with photography, reflections on urban life, and civic participation."
+  image="/assets/images/bluebackground.png"
+>
+  <!-- Intro prose (order 0, renders first) -->
+  <Fragment>
+    <h1>Edward Jensen explores the intersection of nonprofit technology and mission-driven impact.</h1>
+    <p>
+      On these pages, I share insights from inside the work of nonprofit IT: strategy, leadership,
+      and institutional resilience—along with photography, reflections on urban life, civic
+      participation, and whatever else crosses my path as someone deeply invested in mission-driven
+      work.
+    </p>
+  </Fragment>
+
+  <!-- Sections slot — rendered in order: CTA (10), Writing (20), Photos (30) -->
+  <Fragment slot="sections">
+
+    <!-- Order 10: Call to Action (bounded, no card) -->
+    <section
+      class="flex items-center justify-center text-center max-w-7xl mx-auto px-4 lg:px-8 py-6 mb-8"
+      aria-label="Call to Action"
+    >
+      <CallToAction />
+    </section>
+
+    <!-- Order 20: Writing section (default card) -->
+    <div class="max-w-7xl mx-auto px-4 lg:px-8">
+      <SectionCard section="Writing" icon="pen" subheader="Recent thoughts and essays">
+        <RecentPosts posts={recentPostItems} limit={10} />
+      </SectionCard>
+    </div>
+
+    <!-- Order 30: Photography (full-bleed strip) -->
+    <section class="w-full pt-8 lg:pt-12 pb-12 lg:pb-16" aria-label="Photography">
+      <PhotoStrip photos={photoItems} />
+    </section>
+
+  </Fragment>
+</LandingPage>
 

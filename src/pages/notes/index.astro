@@ -1,0 +1,91 @@
+---
+/**
+ * Working notes index — page 1.
+ * Subsequent pages: /notes/page/[page]/
+ */
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import WorkingNoteCard from "../../components/WorkingNoteCard.astro";
+import { getWorkingNotes, workingNotePath } from "../../lib/payload";
+
+const NOTES_PER_PAGE = 20;
+
+const notes = await getWorkingNotes();
+const sorted = [...notes]
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  .map((n) => ({ ...n, url: workingNotePath(n.slug, n.date) }));
+
+const pageNotes = sorted.slice(0, NOTES_PER_PAGE);
+const totalPages = Math.ceil(sorted.length / NOTES_PER_PAGE);
+---
+
+<ContentWrapper
+  title="Working Notes"
+  description="Short observations, experiments, and in-progress thinking."
+>
+
+  <div class="article-container">
+    <!-- Page Header -->
+    <div class="bg-brand-orange text-white px-8 lg:px-12 pt-8 lg:pt-10 pb-6 lg:pb-8">
+      <div class="flex items-center gap-4">
+        <div class="hidden md:flex w-12 h-12 bg-white/20 rounded-xl items-center justify-center" aria-hidden="true">
+          <i class="ph ph-notebook text-white text-xl" aria-hidden="true"></i>
+        </div>
+        <div>
+          <h1 class="font-header font-bold text-3xl lg:text-4xl text-white lowercase">Working Notes</h1>
+          <p class="text-white/80 mt-1 lowercase">Short observations, experiments, and in-progress thinking</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-8 lg:p-12">
+      <div class="space-y-4">
+        {pageNotes.length > 0 ? (
+          pageNotes.map((note, i) => (
+            <WorkingNoteCard
+              id={note.id}
+              index={i + 1}
+              title={note.title}
+              date={note.date}
+              tags={note.tags ?? []}
+              contentHtml={note.contentHtml}
+              url={note.url}
+            />
+          ))
+        ) : (
+          <p class="text-center text-muted py-8">No working notes found.</p>
+        )}
+      </div>
+
+      <!-- Pagination -->
+      {totalPages > 1 && (
+        <nav aria-label="Working notes pagination" class="mt-12">
+          <div class="flex items-center justify-center gap-2 flex-wrap">
+            <span class="px-3 py-2 rounded text-sm font-semibold bg-brand-orange text-white" aria-current="page">1</span>
+            {Array.from({ length: totalPages - 1 }, (_, i) => i + 2).map((num) => (
+              <a href={`/notes/page/${num}/`} class="px-3 py-2 rounded text-sm font-semibold text-body hover:text-brand-chestnut transition-colors" aria-label={`Page ${num}`}>
+                {num}
+              </a>
+            ))}
+            <a href="/notes/page/2/" class="btn-secondary px-4 py-2 text-sm" aria-label="Next page">Next →</a>
+          </div>
+          <p class="text-center text-sm text-muted mt-4">
+            Page 1 of {totalPages} — {sorted.length} notes total
+          </p>
+        </nav>
+      )}
+
+      <!-- Feed links footer -->
+      <div class="mt-12 pt-8 border-t border-brand-grey/20 dark:border-brand-grey/30 flex flex-wrap gap-6 justify-center items-center">
+        <a href="/feeds/notes.xml" class="inline-flex items-center gap-2 link-accent font-semibold" title="Subscribe to Working Notes RSS feed">
+          <i class="ph ph-rss text-lg" aria-hidden="true"></i>
+          <span>RSS Feed</span>
+        </a>
+        <a href="/feeds/notes.json" class="inline-flex items-center gap-2 link-accent font-semibold" title="Subscribe to Working Notes JSON feed">
+          <i class="ph ph-brackets-curly text-lg" aria-hidden="true"></i>
+          <span>JSON Feed</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+</ContentWrapper>

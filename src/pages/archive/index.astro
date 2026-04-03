@@ -1,0 +1,72 @@
+---
+/**
+ * Archive index page — /archive/
+ * Explains why old posts were retired and lists preserved historic posts.
+ */
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import { getHistoricPosts, historicPostPath } from "../../lib/payload";
+
+const historicPosts = await getHistoricPosts();
+const sorted = [...historicPosts]
+  .filter((p) => p._status === "published")
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+---
+
+<ContentWrapper
+  title="About those old posts..."
+  description="Some posts from this site have been retired to a private archive. Read more about why."
+>
+  <article class="article-container">
+    <div class="page-section-header px-8 lg:px-12 pt-8 pb-6">
+      <h1 class="font-header font-bold text-3xl lg:text-4xl text-heading">
+        About those old posts…
+      </h1>
+    </div>
+
+    <div class="p-8 lg:p-12">
+      <div class="prose dark:prose-invert max-w-none mb-12">
+        <p>
+          In a previous life, both I and this blog lived quite heavily in the matters of central-city Phoenix, Arizona. After{" "}
+          <a href="/posts/2022/2022-08/as-i-was-saying-big-news/">I moved away from Phoenix in 2022</a> and then{" "}
+          <a href="/posts/2025/2025-02/something-old-something-new/">moved this site to its current platform in early 2025</a>, I had to make a decision about what to do with those posts. Almost all of them were reactions to a particular moment or circumstance facing central-city Phoenix at that specific time.
+        </p>
+        <p>
+          While I stand by those posts and am very proud of the work and the positive impact I've had on the trajectory of central-city Phoenix,{" "}
+          <a href="/posts/2025/2025-10/last-call-old-posts/">those posts are no longer relevant</a> to my current work, geography, or what I want this site to be. As such, I have retired those posts to a private archive. But because central-city Phoenix advocacy was a huge part of my life, and because Phoenix will always be my home, I have decided to keep a few of those posts online as examples of that work, which are below.
+        </p>
+        <p>
+          I welcome you to see the rest of my work and contemporary focus. You can browse the{" "}
+          <a href="/writing/">post index here</a> or use the <a href="/search/">search function</a> to find related posts.
+        </p>
+        <p>
+          While the main focus of this blog going forward is on the intersection of nonprofit organizations and technology, there may be the odd essay on the downtown Saint Paul condition in here from time to time…<em>once an urbanist, always an urbanist</em>!
+        </p>
+        <p>Thank you for your support and your understanding.</p>
+      </div>
+
+      <!-- Historic posts list -->
+      {sorted.length > 0 && (
+        <section>
+          <h2 class="text-2xl font-bold text-heading mb-6">Selected Historical Posts</h2>
+          <div class="space-y-4">
+            {sorted.map((post) => {
+              const url = historicPostPath(post.slug);
+              const displayDate = new Date(post.date).toLocaleDateString("en-US", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                timeZone: "UTC",
+              });
+              return (
+                <div class="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4 py-2 border-b border-brand-grey/20 dark:border-brand-grey/30 last:border-0">
+                  <time class="text-sm text-muted flex-shrink-0 font-mono">{displayDate}</time>
+                  <a href={url} class="link-accent font-semibold">{post.title}</a>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+  </article>
+</ContentWrapper>

@@ -1,0 +1,53 @@
+---
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import ItemList from "../../components/ItemList.astro";
+import type { PostItem } from "../../components/ItemList.astro";
+import { getPosts, postPath } from "../../lib/payload";
+
+export const prerender = true;
+
+const posts = await getPosts();
+
+// Deduplicate by title (same as Jekyll writing.md), sort newest-first
+const seen = new Set<string>();
+const uniquePosts = posts
+  .filter((p) => {
+    if (seen.has(p.title)) return false;
+    seen.add(p.title);
+    return true;
+  })
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+const items: PostItem[] = uniquePosts.map((p) => ({
+  title: p.title,
+  url: postPath(p.slug, p.date),
+  date: p.date,
+  excerpt: p.excerpt ? p.excerpt.replace(/<[^>]+>/g, "") : undefined,
+}));
+---
+
+<ContentWrapper
+  title="Writing"
+  description="Essays, thoughts, and observations"
+>
+  <!-- Page header -->
+  <div class="page-section-header mb-8 -mx-4 lg:-mx-8 -mt-12 lg:-mt-16 px-4 lg:px-8 pt-8 pb-6">
+    <div class="flex items-center gap-4">
+      <div class="hidden md:flex w-12 h-12 bg-brand-orange rounded-xl items-center justify-center" aria-hidden="true">
+        <i class="ph ph-pen text-white text-xl" aria-hidden="true"></i>
+      </div>
+      <div>
+        <h1 class="font-header font-bold text-3xl text-heading tracking-wide lowercase">Writing</h1>
+        <p class="text-muted mt-1 lowercase">Essays, thoughts, and observations</p>
+      </div>
+    </div>
+  </div>
+
+  <ItemList
+    items={items}
+    groupByYear={true}
+    showExcerpt={true}
+    showArchiveLink={true}
+    italicEjnet={true}
+  />
+</ContentWrapper>

@@ -1,0 +1,163 @@
+---
+/**
+ * Photography gallery index — /photos/
+ * Embeds all photo metadata as a JSON data store for photo-gallery.js.
+ * The grid supports URL routing: clicking a photo changes the URL to the photo
+ * permalink, and the modal opens over the gallery.
+ *
+ * Pagination: shows 24 photos per page.
+ * Pagination pages: /photos/page/2/, etc. (see /photos/page/[page].astro)
+ */
+import type { GetStaticPaths } from "astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getPhotography, photoPath } from "../../lib/payload";
+import { googleMaps } from "../../data/google-maps";
+
+const PHOTOS_PER_PAGE = 24;
+
+const photos = await getPhotography();
+const sorted = [...photos].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+
+const pagePhotos = sorted.slice(0, PHOTOS_PER_PAGE);
+const totalPages = Math.ceil(sorted.length / PHOTOS_PER_PAGE);
+
+// Build the JSON data store (same structure as Jekyll)
+const galleryData = {
+  galleryUrl: "/photos/",
+  galleryTitle: "Photography",
+  googleMapsProxyUrl: googleMaps.proxy_url,
+  googleMapsSettings: {
+    zoom_precise: googleMaps.zoom_precise,
+    zoom_approximate: googleMaps.zoom_approximate,
+    zoom_default: googleMaps.zoom_default,
+    size: googleMaps.size,
+    scale: googleMaps.scale,
+    maptype: googleMaps.maptype,
+  },
+  photos: sorted.map((p) => ({
+    url: photoPath(p.slug, p.date),
+    title: p.title,
+    date: p.date,
+    dateFormatted: new Date(p.date).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    image: p.image?.url ?? "",
+    imageAlt: p.image?.alt ?? p.title,
+    content: p.contentHtml ?? "",
+    tags: p.tags ?? [],
+    exif: {
+      camera: p.exif?.camera ?? null,
+      lens: p.exif?.lens ?? null,
+      focalLength: p.exif?.focalLength ?? null,
+      aperture: p.exif?.aperture ?? null,
+      shutterSpeed: p.exif?.shutterSpeed ?? null,
+      iso: p.exif?.iso ?? null,
+    },
+    location: {
+      lat: p.location?.lat ?? null,
+      lng: p.location?.lng ?? null,
+      name: p.location?.name ?? null,
+      neighborhood: p.location?.neighborhood ?? null,
+      city: p.location?.city ?? null,
+      state: p.location?.state ?? null,
+      country: p.location?.country ?? null,
+      precision: p.location?.precision ?? "precise",
+    },
+  })),
+};
+---
+
+<BaseLayout title="Photography" description="Visual stories and captured moments.">
+  <slot name="head" slot="head">
+    <script src="/assets/js/photo-gallery.js" is:inline defer></script>
+  </slot>
+
+  <!-- Photo Gallery Data Store -->
+  <script id="photo-gallery-data" type="application/json" set:html={JSON.stringify(galleryData)} />
+
+  <main class="w-full" id="main-content" role="main">
+    <div class="max-w-7xl mx-auto px-4 lg:px-8 py-12 lg:py-16">
+      <div
+        class="article-container"
+        id="photo-gallery-container"
+        data-gallery-init="photo-gallery-data"
+      >
+        <!-- Page header -->
+        <header class="p-8 lg:p-12 pb-0">
+          <h1 class="font-header font-bold text-3xl lg:text-4xl text-heading leading-tight tracking-wide lowercase">
+            Photography
+          </h1>
+          <p class="mt-2 text-muted text-lg">Visual stories and captured moments</p>
+        </header>
+
+        <!-- Photo grid -->
+        <div id="photo-gallery-grid" class="p-4 lg:p-8">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 lg:gap-4">
+            {pagePhotos.map((photo) => {
+              const url = photoPath(photo.slug, photo.date);
+              return (
+                <a
+                  href={url}
+                  class="group relative aspect-square overflow-hidden"
+                  data-photo-url={url}
+                >
+                  <img
+                    src={photo.image?.url ?? ""}
+                    alt={photo.image?.alt ?? photo.title}
+                    class="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    width="400"
+                    height="400"
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                    <h3 class="text-white text-sm font-semibold line-clamp-2">{photo.title}</h3>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+
+          <!-- Pagination (page 1) -->
+          {totalPages > 1 && (
+            <nav aria-label="Photography pagination" class="mt-12">
+              <div class="flex items-center justify-center gap-2 flex-wrap">
+                <span class="px-3 py-2 rounded text-sm font-semibold bg-brand-orange text-white" aria-current="page">1</span>
+                {Array.from({ length: totalPages - 1 }, (_, i) => i + 2).map((num) => (
+                  <a href={`/photos/page/${num}/`} class="px-3 py-2 rounded text-sm font-semibold text-body hover:text-brand-chestnut transition-colors" aria-label={`Page ${num}`}>
+                    {num}
+                  </a>
+                ))}
+                <a href="/photos/page/2/" class="btn-secondary px-4 py-2 text-sm" aria-label="Next page">Next →</a>
+              </div>
+            </nav>
+          )}
+        </div>
+      </div>
+    </div>
+  </main>
+</BaseLayout>
+
+<script>
+  // Initialize photo gallery after DOM is ready
+  document.addEventListener("DOMContentLoaded", () => {
+    // Wire up click handlers for all photo grid links
+    const container = document.getElementById("photo-gallery-container");
+    if (!container || typeof window.photoGallery !== "function") return;
+
+    const gallery = window.photoGallery();
+    gallery.init("photo-gallery-data");
+
+    // Override link clicks to open modal
+    container.querySelectorAll("a[data-photo-url]").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const url = (link as HTMLAnchorElement).dataset.photoUrl;
+        if (url) gallery.openPhotoByUrl(url);
+      });
+    });
+  });
+</script>

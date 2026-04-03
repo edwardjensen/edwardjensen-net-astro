@@ -1,0 +1,65 @@
+---
+/**
+ * Archive landing page — /archive/landing/
+ * Shown when a retired post URL is accessed.
+ */
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import { getHistoricPosts, historicPostPath } from "../../lib/payload";
+
+const historicPosts = await getHistoricPosts();
+const sorted = [...historicPosts]
+  .filter((p) => p._status === "published")
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+---
+
+<ContentWrapper
+  title="The post you're looking for has been retired"
+  description="Some posts from this site have been retired. Search for other posts or browse the current index."
+>
+  <article class="article-container">
+    <div class="page-section-header px-8 lg:px-12 pt-8 pb-6">
+      <h1 class="font-header font-bold text-3xl lg:text-4xl text-heading">
+        The post you're looking for has been retired
+      </h1>
+    </div>
+
+    <div class="p-8 lg:p-12">
+      <div class="prose dark:prose-invert max-w-none mb-12">
+        <p>
+          If you've landed on this page expecting to see a specific post, you're here because that post has been retired.{" "}
+          <a href="/archive/">You're welcome to read more</a>, but in summary, when I migrated this blog to its current platform in early 2025,{" "}
+          <a href="/posts/2025/2025-10/last-call-old-posts/">I made the decision to retire posts</a> that were no longer contemporary or relevant.
+        </p>
+        <p>
+          You're welcome to search for other posts using the <a href="/search/">search function</a>, or browse the{" "}
+          <a href="/writing/">current post index here</a>. I have preserved a few retired posts as examples of my previous work, which you can see below.
+        </p>
+        <p>Thank you for your support and your understanding.</p>
+      </div>
+
+      <!-- Historic posts list -->
+      {sorted.length > 0 && (
+        <section>
+          <h2 class="text-2xl font-bold text-heading mb-6">Selected Historical Posts</h2>
+          <div class="space-y-4">
+            {sorted.map((post) => {
+              const url = historicPostPath(post.slug);
+              const displayDate = new Date(post.date).toLocaleDateString("en-US", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                timeZone: "UTC",
+              });
+              return (
+                <div class="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4 py-2 border-b border-brand-grey/20 dark:border-brand-grey/30 last:border-0">
+                  <time class="text-sm text-muted flex-shrink-0 font-mono">{displayDate}</time>
+                  <a href={url} class="link-accent font-semibold">{post.title}</a>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+  </article>
+</ContentWrapper>

@@ -1,0 +1,146 @@
+---
+/**
+ * Featured tag landing page — /tags/[tag]/
+ *
+ * Renders a hero image, description, and filtered post list for each featured tag.
+ * Tag data comes from src/data/featured-tags.ts (mirrors Jekyll's _featured-tags/ collection).
+ */
+import type { GetStaticPaths } from "astro";
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import { getPosts, postPath } from "../../lib/payload";
+import { featuredTags } from "../../data/featured-tags";
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const allPosts = await getPosts();
+
+  return featuredTags.map((tagDef) => {
+    const filtered = allPosts.filter(
+      (p) => p._status === "published" && p.tags?.includes(tagDef.tag)
+    );
+    const sorted = [...filtered].sort((a, b) => {
+      const diff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      return tagDef.sortAscending ? diff : -diff;
+    });
+
+    return {
+      params: { tag: tagDef.tag },
+      props: { tagDef, posts: sorted },
+    };
+  });
+};
+
+const { tagDef, posts } = Astro.props;
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+---
+
+<ContentWrapper
+  title={tagDef.title}
+  description={tagDef.description}
+  image={tagDef.image}
+>
+  <article class="article-container">
+    <!-- Hero image -->
+    {tagDef.image && (
+      <figure class="relative">
+        <img
+          class="w-full h-auto object-cover max-h-96"
+          src={tagDef.image}
+          alt={tagDef.imageAlt}
+          loading="eager"
+        />
+      </figure>
+    )}
+
+    <!-- Header -->
+    <header class="page-section-header px-8 lg:px-12 pt-8 pb-6">
+      <div class="flex items-center gap-4">
+        <div class="text-brand-orange flex-shrink-0" aria-hidden="true">
+          <i class="ph ph-tag text-4xl"></i>
+        </div>
+        <h1 class="font-header font-bold text-4xl lg:text-5xl leading-tight tracking-normal text-heading">
+          {tagDef.title}
+        </h1>
+      </div>
+    </header>
+
+    <!-- Content area -->
+    <div class="p-8 lg:p-12">
+      <!-- Description as bold summary -->
+      <div class="prose dark:prose-invert !max-w-none text-lg font-semibold text-body mb-12 border-b border-brand-grey/20 dark:border-brand-grey/30 pb-8">
+        <p>{tagDef.description}</p>
+      </div>
+
+      <!-- Posts list -->
+      <section aria-label={`Posts tagged with ${tagDef.tag}`}>
+        <h2 class="sr-only">Posts in this series</h2>
+
+        {posts.length > 0 ? (
+          <div class="space-y-6">
+            {posts.map((post) => {
+              const url = postPath(post.slug, post.date);
+              const excerpt = post.excerpt
+                ? post.excerpt.replace(/<[^>]+>/g, "").slice(0, 200)
+                : null;
+              return (
+                <article class="group border-b border-brand-grey/20 dark:border-brand-grey/30 pb-6 last:border-b-0 last:pb-0">
+                  <a
+                    href={url}
+                    class="flex flex-col md:flex-row md:items-center gap-4 list-item-hover p-4 -m-4"
+                  >
+                    {post.image && (
+                      <div class="flex-shrink-0 w-full md:w-48 h-32 overflow-hidden rounded-lg">
+                        <img
+                          src={post.image.url}
+                          alt=""
+                          class="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+                    <div class="flex-grow">
+                      <h3 class="text-heading group-hover:text-brand-chestnut font-semibold text-lg transition-colors duration-200">
+                        {post.title}
+                      </h3>
+                      <time
+                        class="text-sm text-muted block mt-1"
+                        datetime={post.date.slice(0, 10)}
+                      >
+                        {formatDate(post.date)}
+                      </time>
+                      {excerpt && (
+                        <p class="text-sm text-muted mt-2">{excerpt}</p>
+                      )}
+                    </div>
+                  </a>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p class="text-center text-muted py-8">
+            No posts found with the tag "{tagDef.tag}".
+          </p>
+        )}
+      </section>
+
+      <!-- RSS feed link -->
+      <div class="mt-12 pt-8 border-t border-brand-grey/20 dark:border-brand-grey/30 flex justify-center">
+        <a
+          href={`/feeds/${tagDef.tag}.xml`}
+          class="btn-primary inline-flex items-center gap-2"
+          title={`Subscribe to ${tagDef.title} RSS feed`}
+        >
+          <i class="ph ph-rss" aria-hidden="true"></i>
+          <span>Subscribe to {tagDef.title} via RSS</span>
+        </a>
+      </div>
+    </div>
+  </article>
+</ContentWrapper>

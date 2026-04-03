@@ -1,18 +1,29 @@
 ---
 import "../styles/global.css";
+import SEO from "../components/SEO.astro";
 import HeaderNav from "../islands/HeaderNav";
 import Footer from "../components/Footer.astro";
+import PhotoModal from "../components/PhotoModal.astro";
 
 interface Props {
   title?: string;
   description?: string;
+  image?: string;
+  imageAlt?: string;
+  type?: "website" | "article";
+  publishedAt?: string;
+  updatedAt?: string;
 }
 
-const { title, description } = Astro.props;
-const siteTitle = "Edward Jensen";
-const pageTitle = title ? `${title} - ${siteTitle}` : siteTitle;
-const pageDescription = description ?? "The personal website of Edward Jensen.";
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+const {
+  title = "Edward Jensen",
+  description,
+  image,
+  imageAlt,
+  type,
+  publishedAt,
+  updatedAt,
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -20,21 +31,23 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{pageTitle}</title>
-    <meta name="description" content={pageDescription} />
-    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- SEO meta tags, Open Graph, Twitter Cards, JSON-LD -->
+    <SEO
+      title={title}
+      description={description}
+      image={image}
+      imageAlt={imageAlt}
+      type={type}
+      publishedAt={publishedAt}
+      updatedAt={updatedAt}
+    />
 
     <!-- Phosphor Icons via CDN -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"
     />
-
-    <!-- Open Graph -->
-    <meta property="og:title" content={pageTitle} />
-    <meta property="og:description" content={pageDescription} />
-    <meta property="og:url" content={canonicalUrl} />
-    <meta property="og:type" content="website" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -58,8 +71,8 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     <!-- Main page content -->
     <slot />
 
-    <!-- Photo modal placeholder — populated by photo gallery JS in Phase 2 -->
-    <div id="photo-modal-root" aria-hidden="true"></div>
+    <!-- Photo modal overlay — populated by public/assets/js/photo-gallery.js -->
+    <PhotoModal />
 
     <!-- Footer -->
     <footer role="contentinfo" aria-label="Site footer">

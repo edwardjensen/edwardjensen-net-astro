@@ -1,0 +1,191 @@
+---
+/**
+ * PhotoStrip section component
+ * Horizontal scrolling strip of recent photos.
+ * Simple mode: links go directly to photo pages (no URL-routing modal yet—
+ * the full PhotoModal Preact island is wired up in Sub-Phase 2.4).
+ *
+ * Reorders photos: newest in center, older alternating left/right (same as
+ * the Jekyll photo-gallery include).
+ */
+
+interface Photo {
+  url: string;
+  title: string;
+  imageUrl: string;
+  imageAlt: string;
+}
+
+interface Props {
+  photos: Photo[];
+  /** Max photos to show in the strip (default 15) */
+  limit?: number;
+  scrollId?: string;
+  centerId?: string;
+}
+
+const {
+  photos,
+  limit = 15,
+  scrollId = "photo-strip-scroll",
+  centerId = "photo-strip-center",
+} = Astro.props;
+
+const recent = photos.slice(0, limit);
+
+// Reorder: center = newest, older alternate left/right
+const centerPhoto = recent[0];
+const leftPhotos: Photo[] = [];
+const rightPhotos: Photo[] = [];
+
+for (let i = 1; i < recent.length; i++) {
+  if (i % 2 === 1) {
+    rightPhotos.push(recent[i]);
+  } else {
+    leftPhotos.push(recent[i]);
+  }
+}
+
+const leftReversed = [...leftPhotos].reverse();
+---
+
+<div class="relative w-full" id="photo-strip-wrapper">
+  <!-- Edge fade gradients (desktop only) -->
+  <div
+    class="hidden lg:block absolute left-0 top-4 bottom-4 w-16 bg-gradient-to-r from-brand-smoke dark:from-brand-ink to-transparent z-10 pointer-events-none"
+    aria-hidden="true"
+  ></div>
+  <div
+    class="hidden lg:block absolute right-0 top-4 bottom-4 w-16 bg-gradient-to-l from-brand-smoke dark:from-brand-ink to-transparent z-10 pointer-events-none"
+    aria-hidden="true"
+  ></div>
+
+  <div
+    id={scrollId}
+    class="flex flex-nowrap overflow-x-scroll gap-2 lg:gap-4 py-4 scrollbar-hide items-center cursor-grab active:cursor-grabbing"
+    role="region"
+    aria-label="Recent photography gallery"
+  >
+    <!-- "See more" link (left side) -->
+    <a
+      href="/photos/"
+      class="flex-shrink-0 w-48 lg:w-56 aspect-square rounded-lg bg-brand-smoke dark:bg-brand-ink flex items-center justify-center hover:bg-brand-grey/20 transition-colors duration-300 no-underline !text-brand-ink dark:!text-brand-smoke"
+      aria-label="View all photos"
+    >
+      <span class="font-semibold text-center px-4">← More photos</span>
+    </a>
+
+    <!-- Left side photos -->
+    {leftReversed.map((photo, i) => (
+      <figure
+        class:list={[
+          "flex-shrink-0 w-48 lg:w-56 aspect-square overflow-visible rounded-lg cursor-pointer transition-transform duration-300 ease-out hover:scale-105 hover:z-20",
+          (i + 1) % 2 === 0 ? "hover:rotate-2" : "hover:-rotate-2",
+        ]}
+      >
+        <a
+          href={photo.url}
+          class="w-full h-full block rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-brand-chestnut focus:ring-offset-2"
+          data-photo-url={photo.url}
+          aria-label={`View full size: ${photo.imageAlt}`}
+        >
+          <img
+            src={photo.imageUrl}
+            alt={photo.imageAlt}
+            class="w-full h-full object-cover"
+            loading="lazy"
+            width="224"
+            height="224"
+          />
+        </a>
+      </figure>
+    ))}
+
+    <!-- Center photo (newest, slightly larger) -->
+    {centerPhoto && (
+      <figure
+        id={centerId}
+        class="flex-shrink-0 w-52 lg:w-64 aspect-square overflow-visible rounded-xl cursor-pointer transition-transform duration-300 ease-out hover:scale-105 hover:z-20"
+      >
+        <a
+          href={centerPhoto.url}
+          class="w-full h-full block rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-brand-chestnut focus:ring-offset-2"
+          data-photo-url={centerPhoto.url}
+          aria-label={`View full size: ${centerPhoto.imageAlt} (Latest photo)`}
+        >
+          <img
+            src={centerPhoto.imageUrl}
+            alt={centerPhoto.imageAlt}
+            class="w-full h-full object-cover"
+            loading="eager"
+            width="256"
+            height="256"
+          />
+        </a>
+      </figure>
+    )}
+
+    <!-- Right side photos -->
+    {rightPhotos.map((photo, i) => (
+      <figure
+        class:list={[
+          "flex-shrink-0 w-48 lg:w-56 aspect-square overflow-visible rounded-lg cursor-pointer transition-transform duration-300 ease-out hover:scale-105 hover:z-20",
+          (i + 1) % 2 === 0 ? "hover:-rotate-2" : "hover:rotate-2",
+        ]}
+      >
+        <a
+          href={photo.url}
+          class="w-full h-full block rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-brand-chestnut focus:ring-offset-2"
+          data-photo-url={photo.url}
+          aria-label={`View full size: ${photo.imageAlt}`}
+        >
+          <img
+            src={photo.imageUrl}
+            alt={photo.imageAlt}
+            class="w-full h-full object-cover"
+            loading="lazy"
+            width="224"
+            height="224"
+          />
+        </a>
+      </figure>
+    ))}
+
+    <!-- "See more" link (right side) -->
+    <a
+      href="/photos/"
+      class="flex-shrink-0 w-48 lg:w-56 aspect-square rounded-lg bg-brand-smoke dark:bg-brand-ink flex items-center justify-center hover:bg-brand-grey/20 transition-colors duration-300 no-underline !text-brand-ink dark:!text-brand-smoke"
+      aria-label="View all photos"
+    >
+      <span class="font-semibold text-center px-4">More photos →</span>
+    </a>
+  </div>
+</div>
+
+<script define:vars={{ scrollId, centerId }}>
+  (function () {
+    const scrollContainer = document.getElementById(scrollId);
+    const centerPhoto = document.getElementById(centerId);
+
+    if (scrollContainer && centerPhoto) {
+      const scrollLeft =
+        centerPhoto.offsetLeft -
+        scrollContainer.offsetWidth / 2 +
+        centerPhoto.offsetWidth / 2;
+      scrollContainer.scrollLeft = scrollLeft;
+    }
+
+    if (scrollContainer) {
+      scrollContainer.addEventListener(
+        "wheel",
+        (e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.preventDefault();
+            scrollContainer.scrollLeft += e.deltaY;
+          }
+        },
+        { passive: false }
+      );
+    }
+  })();
+</script>

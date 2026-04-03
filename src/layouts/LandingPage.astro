@@ -1,0 +1,44 @@
+---
+/**
+ * LandingPage layout
+ * Provides the three rendering wrappers used by the homepage and landing pages.
+ *
+ * Usage: Compose sections inline in the calling page. The layout exposes
+ * named slots:
+ *   - default     → intro prose block (centred, max-w-7xl)
+ *   - bounded     → centred without card (for call-to-action)
+ *   - full_bleed  → full viewport width (for photo strip)
+ *   - sections    → cardBox sections inside max-w-7xl container
+ *
+ * And a helper component SectionCard used inline by callers.
+ */
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  imageAlt?: string;
+}
+
+const { title, description, image, imageAlt } = Astro.props;
+---
+
+<BaseLayout title={title} description={description} image={image} imageAlt={imageAlt}>
+  <slot name="head" slot="head" />
+  <a rel="me" href="https://mastodon.social/@edwardjensen" class="sr-only">Mastodon Profile</a>
+
+  <main class="w-full space-y-0" id="main-content" role="main" aria-label="Main content area">
+
+    <!-- Intro prose  -->
+    <section class="flex items-center justify-center text-center max-w-7xl mx-auto px-4 lg:px-8 py-6 mb-0" aria-label="Introduction">
+      <div class="prose dark:prose-invert max-w-none text-xl [&_h1]:text-3xl">
+        <slot />
+      </div>
+    </section>
+
+    <!-- All sections rendered by the page -->
+    <slot name="sections" />
+
+  </main>
+</BaseLayout>

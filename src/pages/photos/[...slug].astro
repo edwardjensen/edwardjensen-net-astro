@@ -1,0 +1,297 @@
+---
+/**
+ * Single photo page — /photos/YYYY/YYYY-MM/slug
+ * SSR-style static route with SEO fallback for direct URL access.
+ * Loads photo-gallery.js to open the modal over the embedded gallery.
+ */
+import type { GetStaticPaths } from "astro";
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import ContentNavigation from "../../components/ContentNavigation.astro";
+import { getPhotography, photoPath } from "../../lib/payload";
+import { googleMaps } from "../../data/google-maps";
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const photos = await getPhotography();
+  const sorted = [...photos].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  return sorted.map((photo, i) => {
+    const fullPath = photoPath(photo.slug, photo.date);
+    // fullPath = /photos/YYYY/YYYY-MM/slug
+    const parts = fullPath.split("/").filter(Boolean); // ["photos","YYYY","YYYY-MM","slug"]
+    const slugParam = parts.slice(1).join("/"); // "YYYY/YYYY-MM/slug"
+
+    const prevPhoto = i > 0 ? sorted[i - 1] : null;
+    const nextPhoto = i < sorted.length - 1 ? sorted[i + 1] : null;
+
+    return {
+      params: { slug: slugParam },
+      props: {
+        photo,
+        prevPhoto: prevPhoto ? { title: prevPhoto.title, url: photoPath(prevPhoto.slug, prevPhoto.date) } : null,
+        nextPhoto: nextPhoto ? { title: nextPhoto.title, url: photoPath(nextPhoto.slug, nextPhoto.date) } : null,
+        allPhotos: sorted,
+      },
+    };
+  });
+};
+
+const { photo, prevPhoto, nextPhoto, allPhotos } = Astro.props;
+
+const dateFormatted = new Date(photo.date).toLocaleDateString("en-GB", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+// Build map URL if location present
+function buildMapUrl(photo: any): string | null {
+  if (!photo.location?.lat || !photo.location?.lng) return null;
+  const loc = photo.location;
+  const precision = loc.precision ?? "precise";
+  const zoom =
+    precision === "precise"
+      ? googleMaps.zoom_precise
+      : precision === "approximate"
+        ? googleMaps.zoom_approximate
+        : googleMaps.zoom_default;
+  const params = `center=${loc.lat},${loc.lng}&zoom=${zoom}&size=${googleMaps.size}&scale=${googleMaps.scale}&maptype=${googleMaps.maptype}`;
+  return `${googleMaps.proxy_url}?${params}`;
+}
+
+const mapUrl = buildMapUrl(photo);
+const locationParts = [
+  photo.location?.name,
+  photo.location?.neighborhood,
+  photo.location?.city,
+  photo.location?.state,
+  photo.location?.country,
+].filter(Boolean);
+
+const hasExif =
+  photo.exif &&
+  (photo.exif.camera ||
+    photo.exif.lens ||
+    photo.exif.focalLength ||
+    photo.exif.aperture ||
+    photo.exif.shutterSpeed ||
+    photo.exif.iso);
+
+// JSON data store for gallery JS so the modal can navigate between photos
+const galleryData = {
+  galleryUrl: "/photos/",
+  galleryTitle: "Photography",
+  googleMapsProxyUrl: googleMaps.proxy_url,
+  googleMapsSettings: {
+    zoom_precise: googleMaps.zoom_precise,
+    zoom_approximate: googleMaps.zoom_approximate,
+    zoom_default: googleMaps.zoom_default,
+    size: googleMaps.size,
+    scale: googleMaps.scale,
+    maptype: googleMaps.maptype,
+  },
+  photos: allPhotos.map((p: any) => ({
+    url: photoPath(p.slug, p.date),
+    title: p.title,
+    date: p.date,
+    dateFormatted: new Date(p.date).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    image: p.image?.url ?? "",
+    imageAlt: p.image?.alt ?? p.title,
+    content: p.contentHtml ?? "",
+    tags: p.tags ?? [],
+    exif: {
+      camera: p.exif?.camera ?? null,
+      lens: p.exif?.lens ?? null,
+      focalLength: p.exif?.focalLength ?? null,
+      aperture: p.exif?.aperture ?? null,
+      shutterSpeed: p.exif?.shutterSpeed ?? null,
+      iso: p.exif?.iso ?? null,
+    },
+    location: {
+      lat: p.location?.lat ?? null,
+      lng: p.location?.lng ?? null,
+      name: p.location?.name ?? null,
+      neighborhood: p.location?.neighborhood ?? null,
+      city: p.location?.city ?? null,
+      state: p.location?.state ?? null,
+      country: p.location?.country ?? null,
+      precision: p.location?.precision ?? "precise",
+    },
+  })),
+};
+
+const currentPhotoUrl = photoPath(photo.slug, photo.date);
+---
+
+<ContentWrapper
+  title={photo.title}
+  description={photo.contentHtml ? photo.contentHtml.replace(/<[^>]+>/g, "").slice(0, 160) : undefined}
+  image={photo.image?.url}
+  imageAlt={photo.image?.alt ?? photo.title}
+  type="article"
+  publishedAt={photo.date}
+  updatedAt={photo.updatedAt}
+>
+  <script src="/assets/js/photo-gallery.js" slot="head" is:inline defer></script>
+
+  <!-- Full-resolution fallback (for no-JS / SEO) -->
+  <div
+    id="single-photo-container"
+    data-photo-url={currentPhotoUrl}
+    data-gallery-url="/photos/"
+  >
+    <!-- Gallery data store (needed for modal navigation if JS is active) -->
+    <script id="photo-gallery-data" type="application/json" set:html={JSON.stringify(galleryData)} />
+
+    <article class="article-container">
+      <!-- Featured Photo -->
+      <figure class="relative">
+        <img
+          class="w-full h-auto object-contain"
+          src={photo.image?.url ?? ""}
+          alt={photo.image?.alt ?? photo.title}
+          loading="lazy"
+        />
+      </figure>
+
+      <!-- Content Area -->
+      <div class="p-8 lg:p-12">
+        <header class="mb-8">
+          <h1 class="font-header font-bold text-2xl lg:text-4xl text-heading leading-tight tracking-wide mb-3">
+            {photo.title}
+          </h1>
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
+            <time datetime={photo.date} class="text-muted">{dateFormatted}</time>
+            {photo.tags && photo.tags.length > 0 && (
+              <div class="flex flex-wrap gap-2" role="list" aria-label="Photo tags">
+                {photo.tags.map((tag) => (
+                  <span
+                    class="bg-brand-orange/20 text-brand-chestnut dark:text-brand-orange px-2 py-1 rounded-md text-xs font-semibold border border-brand-orange/30 transition-colors duration-300"
+                    role="listitem"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Caption/content */}
+        {photo.contentHtml && photo.contentHtml.replace(/<[^>]+>/g, "").trim() && (
+          <div class="mb-8 prose dark:prose-invert max-w-none" set:html={photo.contentHtml} />
+        )}
+
+        {/* EXIF metadata */}
+        {hasExif && (
+          <aside class="section-bg rounded-lg p-6 my-6 transition-colors duration-300" role="complementary" aria-label="Photo technical details">
+            <h2 class="text-sm font-semibold text-heading uppercase tracking-wide mb-4">
+              <i class="ph ph-camera me-2" aria-hidden="true"></i>Camera Details
+            </h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              {photo.exif?.camera && (
+                <div>
+                  <dt class="text-muted font-semibold">Camera</dt>
+                  <dd class="text-body">{photo.exif.camera}</dd>
+                </div>
+              )}
+              {photo.exif?.lens && (
+                <div>
+                  <dt class="text-muted font-semibold">Lens</dt>
+                  <dd class="text-body">{photo.exif.lens}</dd>
+                </div>
+              )}
+              {photo.exif?.focalLength && (
+                <div>
+                  <dt class="text-muted font-semibold">Focal Length</dt>
+                  <dd class="text-body">{photo.exif.focalLength}</dd>
+                </div>
+              )}
+              {photo.exif?.aperture && (
+                <div>
+                  <dt class="text-muted font-semibold">Aperture</dt>
+                  <dd class="text-body">{photo.exif.aperture}</dd>
+                </div>
+              )}
+              {photo.exif?.shutterSpeed && (
+                <div>
+                  <dt class="text-muted font-semibold">Shutter Speed</dt>
+                  <dd class="text-body">{photo.exif.shutterSpeed}</dd>
+                </div>
+              )}
+              {photo.exif?.iso && (
+                <div>
+                  <dt class="text-muted font-semibold">ISO</dt>
+                  <dd class="text-body">{photo.exif.iso}</dd>
+                </div>
+              )}
+            </dl>
+          </aside>
+        )}
+
+        {/* Location map */}
+        {mapUrl && (
+          <aside class="section-bg rounded-lg p-6 my-6 transition-colors duration-300" role="complementary" aria-label="Photo location">
+            <h2 class="text-sm font-semibold text-heading uppercase tracking-wide mb-4">
+              <i class="ph ph-map-pin me-2" aria-hidden="true"></i>Location
+            </h2>
+            {locationParts.length > 0 && (
+              <p class="text-body mb-4">{locationParts.join(", ")}</p>
+            )}
+            <div class="aspect-video w-full overflow-hidden rounded-lg">
+              <img
+                src={mapUrl}
+                alt={`Map showing photo location${locationParts.length > 0 ? ": " + locationParts.slice(2, 4).join(", ") : ""}`}
+                class="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          </aside>
+        )}
+
+        {/* Navigation */}
+        <ContentNavigation
+          prev={prevPhoto}
+          next={nextPhoto}
+          variant="photo"
+        />
+
+        <!-- Back to gallery -->
+        <div class="mt-8 pt-6 border-t border-brand-grey/20 dark:border-brand-grey/30">
+          <a href="/photos/" class="link-accent">
+            <i class="ph ph-arrow-left me-2"></i>Back to Photography Gallery
+          </a>
+        </div>
+      </div>
+    </article>
+  </div>
+</ContentWrapper>
+
+<script>
+  // When JS is available: initialize gallery and open this photo in modal
+  document.addEventListener("DOMContentLoaded", () => {
+    if (typeof (window as any).photoGallery !== "function") return;
+
+    const container = document.getElementById("single-photo-container");
+    if (!container) return;
+
+    const photoUrl = container.dataset.photoUrl;
+    const galleryUrl = container.dataset.galleryUrl ?? "/photos/";
+
+    const gallery = (window as any).photoGallery();
+    gallery.init("photo-gallery-data");
+
+    // Open this photo in the modal
+    if (photoUrl) {
+      gallery.sourceUrl = galleryUrl;
+      setTimeout(() => {
+        gallery.openPhotoByUrl(photoUrl);
+      }, 100);
+    }
+  });
+</script>

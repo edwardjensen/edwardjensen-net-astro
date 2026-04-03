@@ -1,0 +1,130 @@
+---
+/**
+ * Downtown Saint Paul Live Camera Stream — /saintpaulcamera/
+ * Occasionally live camera stream using Cloudflare Stream.
+ * Mirrors Jekyll's saintpaullive.md (landing-page layout, sections_camerastream collection).
+ */
+import LandingPage from "../layouts/LandingPage.astro";
+---
+
+<LandingPage
+  title="Downtown Saint Paul Live Camera Stream — Edward Jensen"
+  description="An occasionally live camera stream of downtown Saint Paul, Minnesota."
+  image="/assets/images/bluebackground.png"
+>
+  <!-- Intro prose -->
+  <Fragment>
+    <h1>It's nice to just watch the world go by.</h1>
+    <p>
+      This is an occasionally live camera stream of downtown Saint Paul, Minnesota.
+    </p>
+  </Fragment>
+
+  <Fragment slot="sections">
+    <!-- Order 10: Live Camera stream -->
+    <section class="max-w-7xl mx-auto px-4 lg:px-8 py-8" aria-label="Live Camera">
+      <div class="article-container p-6 lg:p-8">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
+            <i class="ph ph-camera-reels text-white text-lg"></i>
+          </div>
+          <div>
+            <h2 class="font-header font-bold text-xl text-heading">Live Camera</h2>
+            <p class="text-sm text-muted">Automatically plays if the stream is live</p>
+          </div>
+        </div>
+
+        <!-- Stream container -->
+        <div id="stream-container">
+          <!-- Live view -->
+          <div id="stream-live" class="aspect-video w-full relative">
+            <iframe
+              id="stream-iframe"
+              src="https://stpcamera.edwardjensenprojects.com/iframe?autoplay=true&muted=true"
+              class="w-full h-full rounded-lg"
+              allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              title="Downtown Saint Paul Live Camera Stream"
+            ></iframe>
+          </div>
+          <!-- Offline state (hidden by default, shown via JS if stream errors) -->
+          <div id="stream-offline" class="hidden w-full flex flex-col items-center justify-center bg-brand-grey/10 rounded-lg text-center px-8 py-12">
+            <i class="ph ph-video-camera-slash text-4xl text-muted mb-4" aria-hidden="true"></i>
+            <p class="text-heading text-lg font-semibold mb-2">The stream is currently offline</p>
+            <p class="text-muted">
+              Check back later to see the live view of downtown Saint Paul.
+              Check <a href="https://bsky.app/profile/edwardjensen.net" class="link-accent">Bluesky for updates</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Order 20: FAQ -->
+    <section class="max-w-7xl mx-auto px-4 lg:px-8 pb-12" aria-label="FAQ">
+      <div class="article-container p-6 lg:p-8">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
+            <i class="ph ph-question text-white text-lg"></i>
+          </div>
+          <div>
+            <h2 class="font-header font-bold text-xl text-heading">FAQ</h2>
+            <p class="text-sm text-muted">About the stream</p>
+          </div>
+        </div>
+
+        <div class="prose dark:prose-invert max-w-none">
+          <p><strong>Where is this camera?</strong> The camera is located at the Galtier Plaza complex in downtown Saint Paul. It looks south over the Mississippi River, the St Paul Downtown Airport, and the West Side neighborhood of Saint Paul.</p>
+
+          <p><strong>What powers this camera?</strong> The camera is a TP-Link Tapo C120 camera that has been converted to a local-only camera not requiring any Internet connectivity. It's connected to OBS on a computer, which broadcasts the stream (when it's running) to Cloudflare, which provides the bandwidth to the stream.</p>
+
+          <p><strong>Why so complicated? Couldn't you just use whatever tools are in the camera to power this live stream?</strong> I'm not sure a $25 camera would have the horsepower to do so. That said, I'm not keen on IoT devices being able to connect directly to the Internet if it's at all possible.</p>
+
+          <p><strong>The stream's running, but the video is kind of glitchy. Who do I contact?</strong> The stream is provided on a best-effort basis. I'm occasionally checking it when it's running, but no guarantees are made for the performance of the camera or stream.</p>
+
+          <p><strong>Why can't I hear anything?</strong> Out of respect for the privacy of the person whose patio is hosting this camera, there is no audio.</p>
+
+          <p><strong>Why is it not a 24/7 stream?</strong> Having a camera streaming 24/7 consumes limited internet bandwidth. The stream will be turned on during interesting activities or periods of inclement weather. Otherwise, it's turned off.</p>
+        </div>
+      </div>
+    </section>
+  </Fragment>
+</LandingPage>
+
+<!-- Cloudflare Stream SDK for live/offline detection -->
+<script src="https://embed.cloudflarestream.com/embed/sdk.latest.js"></script>
+<script>
+  (function () {
+    const iframe = document.getElementById("stream-iframe");
+    const liveEl = document.getElementById("stream-live");
+    const offlineEl = document.getElementById("stream-offline");
+
+    if (!iframe || !liveEl || !offlineEl) return;
+
+    function showOffline() {
+      liveEl.style.display = "none";
+      offlineEl.classList.remove("hidden");
+    }
+
+    function showLive() {
+      liveEl.style.display = "";
+      offlineEl.classList.add("hidden");
+    }
+
+    // Wait for Stream SDK to be available
+    function tryBindStream() {
+      if (window.Stream) {
+        const player = Stream(iframe);
+        player.addEventListener("error", showOffline);
+        player.addEventListener("stalled", showOffline);
+        player.addEventListener("playing", showLive);
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", tryBindStream);
+    } else {
+      tryBindStream();
+    }
+  })();
+</script>

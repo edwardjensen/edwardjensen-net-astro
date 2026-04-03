@@ -1,0 +1,133 @@
+---
+/**
+ * SEO meta tags component.
+ * Produces <title>, description, canonical, Open Graph, Twitter Cards, and JSON-LD.
+ * Include inside a <head> element.
+ */
+
+const SITE_TITLE = "Edward Jensen";
+const SITE_URL = "https://www.edwardjensen.net";
+const LOGO_URL = `${SITE_URL}/assets/images/bluebackground.png`;
+const AUTHOR_NAME = "Edward Jensen";
+const AUTHOR_URL = SITE_URL;
+const AUTHOR_SAMEAS = [
+  "https://www.linkedin.com/in/edwardjensen",
+  "https://bsky.app/profile/edwardjensen.net",
+  "https://www.github.com/edwardjensen",
+];
+
+interface Props {
+  /** Page title, without site name suffix. */
+  title: string;
+  /** Meta description. Falls back to a generic site description. */
+  description?: string;
+  /** Canonical URL (full https://). Falls back to current page URL. */
+  canonical?: string;
+  /** OG image URL (full https://). Falls back to site logo. */
+  image?: string;
+  /** OG image alt text. Falls back to title. */
+  imageAlt?: string;
+  /** OG type. 'article' for posts with dates, 'website' for everything else. */
+  type?: "website" | "article";
+  /** ISO 8601 date string for article:published_time. */
+  publishedAt?: string;
+  /** ISO 8601 date string for article:modified_time. */
+  updatedAt?: string;
+}
+
+const {
+  title,
+  description = "Edward Jensen is a nonprofit technology professional who writes about the intersection of technology and mission-driven impact work.",
+  canonical = new URL(Astro.url.pathname, Astro.site).toString(),
+  image = LOGO_URL,
+  imageAlt,
+  type = "website",
+  publishedAt,
+  updatedAt,
+} = Astro.props;
+
+const pageTitle = title === SITE_TITLE ? SITE_TITLE : `${title} | ${SITE_TITLE}`;
+const resolvedImageAlt = imageAlt ?? title;
+const resolvedUpdatedAt = updatedAt ?? publishedAt;
+
+// JSON-LD structured data
+const jsonLd =
+  type === "article"
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        headline: title,
+        description,
+        url: canonical,
+        image,
+        datePublished: publishedAt,
+        dateModified: resolvedUpdatedAt ?? publishedAt,
+        author: {
+          "@type": "Person",
+          name: AUTHOR_NAME,
+          url: AUTHOR_URL,
+          sameAs: AUTHOR_SAMEAS,
+        },
+        publisher: {
+          "@type": "Organization",
+          name: SITE_TITLE,
+          logo: {
+            "@type": "ImageObject",
+            url: LOGO_URL,
+          },
+        },
+        mainEntityOfPage: {
+          "@type": "WebPage",
+          "@id": canonical,
+        },
+      }
+    : {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: title,
+        description,
+        url: canonical,
+        author: {
+          "@type": "Person",
+          name: AUTHOR_NAME,
+          url: AUTHOR_URL,
+          sameAs: AUTHOR_SAMEAS,
+        },
+      };
+---
+
+<!-- Primary meta -->
+<title>{pageTitle}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+
+<!-- Open Graph -->
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:site_name" content={SITE_TITLE} />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content={type} />
+<meta property="og:image" content={image} />
+<meta property="og:image:alt" content={resolvedImageAlt} />
+{/* LinkedIn also reads name+property combo */}
+<meta name="image" property="og:image" content={image} />
+{type === "article" && publishedAt && (
+  <meta property="article:published_time" content={publishedAt} />
+)}
+{type === "article" && resolvedUpdatedAt && (
+  <meta property="article:modified_time" content={resolvedUpdatedAt} />
+)}
+{type === "article" && (
+  <meta property="article:author" content={AUTHOR_NAME} />
+)}
+
+<!-- Twitter/X Cards -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={image} />
+<meta name="twitter:image:alt" content={resolvedImageAlt} />
+
+<!-- JSON-LD Structured Data -->
+<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />

@@ -1,0 +1,106 @@
+---
+export interface PostItem {
+  title: string;
+  url: string;
+  date: string; // ISO string
+  excerpt?: string;
+  ejnet?: boolean;
+}
+
+interface Props {
+  items: PostItem[];
+  groupByYear?: boolean;
+  showExcerpt?: boolean;
+  showArchiveLink?: boolean;
+  italicEjnet?: boolean;
+}
+
+const {
+  items,
+  groupByYear = false,
+  showExcerpt = true,
+  showArchiveLink = false,
+  italicEjnet = false,
+} = Astro.props;
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function getYear(iso: string): string {
+  return new Date(iso).getFullYear().toString();
+}
+
+// Group by year if requested
+const grouped = groupByYear
+  ? items.reduce<Record<string, PostItem[]>>((acc, item) => {
+      const yr = getYear(item.date);
+      if (!acc[yr]) acc[yr] = [];
+      acc[yr].push(item);
+      return acc;
+    }, {})
+  : null;
+
+const years = grouped ? Object.keys(grouped).sort((a, b) => Number(b) - Number(a)) : [];
+---
+
+{groupByYear && grouped ? (
+  <div class="space-y-8">
+    {years.map((year) => (
+      <div>
+        <h2 class="text-2xl font-bold text-heading mb-4 border-b border-brand-grey/20 dark:border-brand-grey/30 pb-2">
+          {year}
+        </h2>
+        <div class="space-y-3">
+          {grouped[year].map((item) => (
+            <article class="group">
+              <a href={item.url} class="block list-item-hover p-3 -m-3">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+                  <h3 class:list={["text-heading group-hover:text-brand-chestnut font-bold transition-colors duration-200", { italic: italicEjnet && item.ejnet }]}>
+                    {item.title}
+                  </h3>
+                  <time class="text-sm text-muted lg:ml-4 flex-shrink-0" datetime={item.date}>
+                    {formatDate(item.date)}
+                  </time>
+                </div>
+                {showExcerpt && item.excerpt && (
+                  <p class="text-sm text-muted mt-1 line-clamp-2">{item.excerpt}</p>
+                )}
+              </a>
+            </article>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+) : (
+  <div class="space-y-3">
+    {items.map((item) => (
+      <article class="group">
+        <a href={item.url} class="block list-item-hover p-3 -m-3">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+            <h3 class:list={["text-heading group-hover:text-brand-chestnut font-bold transition-colors duration-200", { italic: italicEjnet && item.ejnet }]}>
+              {item.title}
+            </h3>
+            <time class="text-sm text-muted lg:ml-4 flex-shrink-0" datetime={item.date}>
+              {formatDate(item.date)}
+            </time>
+          </div>
+          {showExcerpt && item.excerpt && (
+            <p class="text-sm text-muted mt-1 line-clamp-2">{item.excerpt}</p>
+          )}
+        </a>
+      </article>
+    ))}
+  </div>
+)}
+
+{showArchiveLink && (
+  <div class="mt-12 pt-8 border-t border-brand-grey/20 dark:border-brand-grey/30">
+    <a href="/archive" class="inline-flex items-center gap-2 text-lg font-semibold text-heading hover:text-brand-chestnut transition-colors duration-200">
+      <i class="ph ph-archive" aria-hidden="true"></i>
+      Historical and Retired Posts
+    </a>
+  </div>
+)}

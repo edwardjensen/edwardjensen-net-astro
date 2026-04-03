@@ -1,0 +1,283 @@
+---
+/**
+ * Dynamic blog post page.
+ * URL pattern: /posts/YYYY/YYYY-MM/slug
+ *
+ * Uses Astro rest params [...slug] to capture the full path segment after /posts/.
+ * getStaticPaths() generates all routes from the CMS at build time.
+ */
+import ContentWrapper from "../../layouts/ContentWrapper.astro";
+import ContentNavigation from "../../components/ContentNavigation.astro";
+import { getPosts, postPath } from "../../lib/payload.ts";
+import type { PayloadPost } from "../../types/payload.ts";
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+
+  // Sort newest first (same order as the CMS delivers)
+  const sorted = [...posts].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  return sorted.map((post, index) => {
+    const path = postPath(post.slug, post.date);
+    // Strip leading /posts/ to get the rest param
+    const slug = path.replace(/^\/posts\//, "");
+
+    // Adjacent posts for previous/next navigation
+    // "previous" = older post (higher index in newest-first array)
+    // "next" = newer post (lower index in newest-first array)
+    const prevPost = sorted[index + 1] ?? null;
+    const nextPost = sorted[index - 1] ?? null;
+
+    return {
+      params: { slug },
+      props: {
+        post,
+        prevPost: prevPost
+          ? { title: prevPost.title, url: postPath(prevPost.slug, prevPost.date) }
+          : null,
+        nextPost: nextPost
+          ? { title: nextPost.title, url: postPath(nextPost.slug, nextPost.date) }
+          : null,
+        // Collect redirect_from paths for this post
+        redirects: (post.redirectFrom ?? []).map((r) => r.path),
+      },
+    };
+  });
+}
+
+interface NavigationItem {
+  title: string;
+  url: string;
+}
+
+interface Props {
+  post: PayloadPost;
+  prevPost: NavigationItem | null;
+  nextPost: NavigationItem | null;
+  redirects: string[];
+}
+
+const { post, prevPost, nextPost } = Astro.props;
+
+// Format date for display: "24 July 2025"
+const displayDate = new Date(post.date).toLocaleDateString("en-US", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+// ISO date for <time datetime="">
+const isoDate = new Date(post.date).toISOString();
+
+// Check content for YouTube URLs (for conditional CSS/JS loading)
+const hasYouTube =
+  post.contentHtml?.includes("youtu.be") ||
+  post.contentHtml?.includes("youtube.com/watch");
+
+// Show image when showImage is true or nil (default true per Jekyll logic)
+const showImage = post.showImage !== false && post.image?.url;
+
+// Process content: replace embed placeholders with rendered HTML
+// The CMS either includes pre-rendered embed HTML or uses <!-- embed:ID --> placeholders
+let renderedContent = post.contentHtml ?? "";
+if (post.blocks && post.blocks.length > 0) {
+  for (const block of post.blocks) {
+    if (block.blockType === "embeddedWorkingNote") {
+      const note = block.doc;
+      const noteDate = new Date(note.date);
+      const y = noteDate.getUTCFullYear();
+      const m = String(noteDate.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(noteDate.getUTCDate()).padStart(2, "0");
+      const noteUrl = `/notes/${y}-${m}-${d}/${note.slug}`;
+
+      const embedHtml = `<aside class="embedded-working-note">
+  <header class="embedded-working-note__header">
+    <h4 class="embedded-working-note__title">${note.title}</h4>
+  </header>
+  <div class="embedded-working-note__content">${note.contentHtml}</div>
+  <footer class="embedded-working-note__footer">
+    <a href="${noteUrl}" class="embedded-working-note__link">View full note &rarr;</a>
+  </footer>
+</aside>`;
+
+      const placeholder = `<!-- embed:${note.id} -->`;
+      if (renderedContent.includes(placeholder)) {
+        renderedContent = renderedContent.replaceAll(placeholder, embedHtml);
+      } else {
+        renderedContent += `\n\n${embedHtml}`;
+      }
+    }
+  }
+}
+---
+
+<ContentWrapper
+  title={post.title}
+  description={post.excerpt ?? undefined}
+  image={post.image?.url}
+  imageAlt={post.image?.alt}
+  type="article"
+  publishedAt={isoDate}
+  updatedAt={post.updatedAt}
+>
+  <!-- Conditional head content: syntax CSS always, YouTube only when needed -->
+  <Fragment slot="head">
+    <link rel="stylesheet" href="/assets/css/syntax.css" />
+    {hasYouTube && (
+      <>
+        <link rel="stylesheet" href="/assets/css/lite-yt-embed.css" />
+        <script src="/assets/js/lite-yt-embed.js" is:inline></script>
+      </>
+    )}
+  </Fragment>
+
+  <article class="article-container">
+    <!-- Article Header: dark band with title, metadata, excerpt -->
+    <header
+      class="bg-brand-ink text-white px-8 lg:px-12 pt-8 lg:pt-12 pb-6 lg:pb-8 transition-colors duration-300"
+    >
+      <div class="space-y-4 text-center lg:text-left">
+        <h1
+          class="font-serif font-bold text-3xl lg:text-5xl leading-tight tracking-wide"
+        >
+          {post.title}
+        </h1>
+
+        <!-- Category, date, tags row -->
+        <div
+          class="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 text-base"
+        >
+          <div
+            class="flex flex-wrap items-center gap-3 justify-center lg:justify-start"
+          >
+            {
+              post.categories && post.categories.length > 0 && (
+                <span
+                  class="badge-accent-dark px-3 py-1 rounded-full"
+                  role="note"
+                  aria-label="Category"
+                >
+                  {post.categories[0]}
+                </span>
+              )
+            }
+            <time
+              datetime={isoDate}
+              class="text-brand-smoke/80"
+            >
+              {displayDate}
+            </time>
+          </div>
+
+          {
+            post.tags && post.tags.length > 0 && (
+              <div
+                class="flex flex-wrap gap-2 justify-center lg:justify-end"
+                role="list"
+                aria-label="Post tags"
+              >
+                {post.tags.map((tag) => (
+                  <span class="badge-accent-dark" role="listitem">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )
+          }
+        </div>
+
+        <!-- Optional excerpt as italic subheading -->
+        {
+          post.excerpt && (
+            <p class="text-brand-smoke/80 text-base lg:text-lg leading-relaxed max-w-3xl italic text-center lg:text-left">
+              {post.excerpt}
+            </p>
+          )
+        }
+      </div>
+    </header>
+
+    <!-- Featured Image -->
+    {
+      showImage && (
+        <figure class="relative">
+          <img
+            class="w-full h-auto object-contain"
+            src={post.image!.url}
+            alt={post.image!.alt}
+            width={post.image!.width}
+            height={post.image!.height}
+            loading="lazy"
+          />
+        </figure>
+      )
+    }
+
+    <!-- Article body -->
+    <div class="p-8 lg:p-12">
+      <!-- Prose content (pre-rendered HTML from CMS) -->
+      <div
+        class="prose dark:prose-invert !max-w-none hyperlink-container"
+        role="document"
+        id="prose-content"
+        set:html={renderedContent}
+      />
+
+      <!-- YouTube embed transformation (runs client-side on posts with YouTube links) -->
+      {
+        hasYouTube && (
+          <script>
+            document.addEventListener("DOMContentLoaded", function () {
+              const container = document.getElementById("prose-content");
+              if (!container) return;
+              const paragraphs = container.querySelectorAll("p");
+              paragraphs.forEach((p) => {
+                const text = p.textContent?.trim() ?? "";
+                const youtubeUrlRegex =
+                  /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\S+$/;
+                if (!youtubeUrlRegex.test(text)) return;
+                let videoId: string | null = null;
+                const shortMatch = text.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+                if (shortMatch) {
+                  videoId = shortMatch[1];
+                } else {
+                  const longMatch = text.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+                  if (longMatch) videoId = longMatch[1];
+                }
+                if (!videoId) return;
+                const liteYT = document.createElement("lite-youtube");
+                liteYT.setAttribute("videoid", videoId);
+                liteYT.setAttribute("playlabel", "Play");
+                liteYT.setAttribute("title", "YouTube video player");
+                liteYT.style.backgroundImage = `url("https://i.ytimg.com/vi/${videoId}/hqdefault.jpg")`;
+                liteYT.style.margin = "1.5rem 0";
+                liteYT.style.display = "block";
+                p.replaceWith(liteYT);
+              });
+            });
+          </script>
+        )
+      }
+
+      <!-- Post credits / attribution -->
+      {
+        post.postCredits && (
+          <aside
+            class="text-[16px] section-bg rounded-md text-center p-1 my-2 transition-colors duration-300 hyperlink-container"
+            role="complementary"
+            aria-label="Post credits"
+            set:html={post.postCredits}
+          />
+        )
+      }
+
+      <!-- Previous / next post navigation -->
+      <nav role="navigation" aria-label="Post navigation">
+        <ContentNavigation prev={prevPost} next={nextPost} variant="post" />
+      </nav>
+    </div>
+  </article>
+</ContentWrapper>
