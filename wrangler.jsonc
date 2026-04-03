@@ -1,0 +1,11 @@
+{
+	"compatibility_date": "2026-04-03",
+	"name": "edwardjensen-net-astro",
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "404-page"
+	},
+	"observability": {
+		"enabled": true
+	}
+}

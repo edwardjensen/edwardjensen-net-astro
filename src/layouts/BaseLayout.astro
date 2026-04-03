@@ -1,0 +1,69 @@
+---
+import "../styles/global.css";
+import HeaderNav from "../islands/HeaderNav";
+import Footer from "../components/Footer.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const siteTitle = "Edward Jensen";
+const pageTitle = title ? `${title} - ${siteTitle}` : siteTitle;
+const pageDescription = description ?? "The personal website of Edward Jensen.";
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Phosphor Icons via CDN -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"
+    />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:type" content="website" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Page-specific head content (injected by child layouts) -->
+    <slot name="head" />
+  </head>
+
+  <body class="bg-brand-smoke dark:bg-brand-ink min-h-screen transition-colors duration-300">
+    <!-- Skip to main content for screen readers -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-brand-orange text-white px-4 py-2 rounded-md z-50 focus:z-50"
+    >
+      Skip to main content
+    </a>
+
+    <!-- Sticky header navigation (Preact island — loads immediately) -->
+    <HeaderNav client:load />
+
+    <!-- Main page content -->
+    <slot />
+
+    <!-- Photo modal placeholder — populated by photo gallery JS in Phase 2 -->
+    <div id="photo-modal-root" aria-hidden="true"></div>
+
+    <!-- Footer -->
+    <footer role="contentinfo" aria-label="Site footer">
+      <Footer />
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,44 @@
+---
+import { footerText } from "../data/footer-text";
+
+const currentYear = new Date().getFullYear();
+---
+
+<div class="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] section-bg border-t border-brand-grey/20 dark:border-brand-grey/30 transition-colors duration-300">
+  <div class="text-center text-sm py-6 font-mono italic tracking-tighter text-body flex flex-col space-y-3 px-4 md:px-8 lg:px-12">
+    <div>
+      <p>
+        Copyright &copy; 2008-{currentYear} Edward Jensen. All rights reserved.
+      </p>
+    </div>
+    <div>
+      <p>
+        <span class="font-semibold" role="note">Disclaimer:</span>{" "}
+        {footerText.disclaimer}
+      </p>
+    </div>
+    <div>
+      <p>
+        <span class="text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange font-semibold">
+          ⚠ LOCAL DEVELOPMENT ENVIRONMENT
+        </span>
+        {" · "}
+        <a
+          href="https://astro.build/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Astro static site framework (opens in new tab)"
+          class="underline"
+        >Astro</a>
+        {" + "}
+        <a
+          href="https://payloadcms.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Payload CMS (opens in new tab)"
+          class="underline"
+        >Payload CMS</a>
+      </p>
+    </div>
+  </div>
+</div>

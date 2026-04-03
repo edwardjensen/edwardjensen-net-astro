@@ -1,0 +1,434 @@
+/* Self-hosted variable fonts via @fontsource */
+@import "@fontsource-variable/source-sans-3";
+@import "@fontsource-variable/source-sans-3/wght-italic.css";
+@import "@fontsource-variable/fraunces/full.css";
+@import "@fontsource-variable/fraunces/full-italic.css";
+
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+    /* Brand Colors (2026 Refresh) */
+    --color-brand-ink: #001524;
+    --color-brand-orange: #F58F29;
+    --color-brand-orange-dark: #a95b00;  /* Accessible orange (4.5:1 on smoke) */
+    --color-brand-grey: #767B91;
+    --color-brand-grey-dark: #5A5E6D;  /* High contrast muted text (light mode) - 5.5:1 on smoke */
+    --color-brand-grey-light: #9499AB; /* High contrast muted text (dark mode) - 5.8:1 on ink */
+    --color-brand-chestnut: #772E25;
+    --color-brand-smoke: #F3F3F3;
+
+    /* Typography — font-family names match @fontsource-variable package names */
+    --font-sans: 'Source Sans 3 Variable', sans-serif;
+    --font-header: 'Fraunces Variable', serif;
+}
+
+/* === ACCESSIBILITY UTILITIES === */
+@layer utilities {
+    /* Hide scrollbar while preserving scroll functionality */
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Screen reader only class */
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    /* Show screen reader content when focused */
+    .sr-only:focus,
+    .focus\:not-sr-only:focus {
+        position: static;
+        width: auto;
+        height: auto;
+        padding: inherit;
+        margin: inherit;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+    }
+}
+
+/* === ACCESSIBILITY BASE STYLES === */
+@layer base {
+    /* Base font size - slightly larger than browser default (16px) */
+    html {
+        font-size: 18px;
+    }
+
+    /* Enhanced focus styles for better visibility */
+    a:focus,
+    button:focus,
+    input:focus,
+    textarea:focus,
+    select:focus {
+        outline: 2px solid #772E25;
+        outline-offset: 2px;
+    }
+
+    /* High contrast mode adjustments */
+    @media (prefers-contrast: high) {
+        .bg-brand-smoke\/70 {
+            background-color: rgba(243, 243, 243, 0.95);
+        }
+
+        .dark .bg-brand-ink\/70 {
+            background-color: rgba(0, 21, 36, 0.95);
+        }
+    }
+
+    /* Reduced motion preferences */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+
+    /* Skip link positioning */
+    .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 6px;
+        background: #000;
+        color: #fff;
+        padding: 8px;
+        text-decoration: none;
+        z-index: 1000;
+    }
+
+    .skip-link:focus {
+        top: 6px;
+    }
+
+    /* Ensure minimum tap target size for touch devices */
+    @media (pointer: coarse) {
+        a,
+        button,
+        input,
+        select,
+        textarea {
+            min-height: 44px;
+            min-width: 44px;
+        }
+    }
+
+    /* Print styles */
+    @media print {
+        * {
+            background: transparent !important;
+            color: black !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+        }
+
+        a[href]::after {
+            content: " (" attr(href) ")";
+        }
+
+        .sr-only,
+        [aria-hidden="true"] {
+            display: none !important;
+        }
+    }
+}
+
+/* Global color scheme */
+:root {
+    color-scheme: light dark;
+}
+
+@layer components {
+    body {
+        @apply bg-brand-smoke dark:bg-brand-ink text-brand-ink dark:text-brand-smoke transition-colors duration-300;
+    }
+
+    /* Default link styles — chestnut passes WCAG AA (7.5:1), softer orange for prefers-contrast: less */
+    a {
+        @apply text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange transition-colors duration-200;
+
+        &:hover {
+            @apply text-brand-ink dark:text-brand-smoke underline;
+        }
+    }
+
+    /* === REUSABLE TEXT COLOR UTILITIES === */
+    .text-body {
+        @apply text-brand-ink dark:text-brand-smoke;
+    }
+
+    .text-muted {
+        @apply text-brand-grey-dark dark:text-brand-grey-light contrast-less:text-brand-grey dark:contrast-less:text-brand-grey;
+    }
+
+    .text-heading {
+        @apply text-brand-ink dark:text-brand-smoke;
+    }
+
+    /* === REUSABLE LINK STYLES === */
+    .link-accent {
+        @apply text-brand-orange-dark dark:text-brand-orange hover:text-brand-chestnut dark:hover:text-brand-smoke transition-colors duration-200;
+    }
+
+    /* === REUSABLE BUTTON STYLES === */
+    .btn-primary {
+        @apply px-4 py-2 rounded-lg bg-brand-orange text-brand-ink hover:bg-brand-chestnut transition-colors duration-200 font-semibold no-underline;
+
+        &:hover {
+            @apply text-brand-ink no-underline;
+        }
+    }
+
+    .btn-secondary {
+        @apply px-3 py-2 rounded-lg bg-brand-smoke dark:bg-brand-ink text-brand-ink dark:text-brand-smoke border border-brand-grey/30 hover:border-brand-orange transition-colors duration-200 font-semibold no-underline;
+
+        &:hover {
+            @apply text-brand-ink dark:text-brand-smoke no-underline;
+        }
+    }
+
+    .btn-ghost {
+        @apply px-3 py-2 rounded-lg text-brand-ink dark:text-brand-smoke hover:bg-brand-grey/10 transition-colors duration-200 no-underline;
+
+        &:hover {
+            @apply text-brand-ink dark:text-brand-smoke no-underline;
+        }
+    }
+
+    /* === REUSABLE CONTAINER/CARD STYLES === */
+    .article-container {
+        @apply bg-brand-smoke/70 dark:bg-brand-ink/70 backdrop-blur-sm rounded-2xl shadow-lg border border-brand-grey/20 overflow-hidden transition-colors duration-300;
+    }
+
+    .dropdown-menu {
+        @apply bg-brand-smoke dark:bg-brand-ink border border-brand-grey/30 rounded-lg shadow-lg;
+    }
+
+    .info-box {
+        @apply bg-brand-orange/10 border border-brand-orange/30 rounded-lg p-4 text-brand-grey-dark dark:text-brand-grey-light contrast-less:text-brand-grey;
+    }
+
+    /* === BADGE VARIANTS === */
+    .badge-accent {
+        @apply bg-brand-orange/15 text-brand-chestnut dark:text-brand-orange px-2 py-1 rounded text-xs font-semibold border border-brand-orange/30;
+    }
+
+    .badge-accent-dark {
+        @apply bg-white/20 backdrop-blur-sm text-white px-2 py-1 rounded text-xs font-semibold border border-white/30;
+    }
+
+    /* === REUSABLE SECTION BACKGROUNDS === */
+    .section-bg {
+        @apply bg-brand-grey/10 dark:bg-brand-grey/10;
+    }
+
+    .section-bg-white {
+        @apply bg-brand-smoke dark:bg-brand-ink;
+    }
+
+    .page-section-header {
+        @apply bg-brand-grey/10 dark:bg-brand-grey/20 border-b border-brand-grey/20 dark:border-brand-grey/30 text-brand-ink dark:text-brand-smoke px-6 lg:px-12 py-10 lg:py-14 transition-colors duration-300;
+    }
+
+    /* === REUSABLE NAVIGATION LINK STYLES === */
+    .nav-link {
+        @apply text-brand-ink dark:text-brand-smoke hover:text-brand-chestnut transition-colors duration-200 no-underline;
+    }
+
+    .nav-link-dropdown {
+        @apply text-brand-ink dark:text-brand-smoke hover:bg-brand-grey/10 dark:hover:bg-brand-grey/20 hover:text-brand-chestnut transition-colors duration-200 no-underline;
+    }
+
+    /* === REUSABLE LIST ITEM STYLES === */
+    .list-item-hover {
+        @apply hover:bg-brand-grey/10 dark:hover:bg-brand-grey/20 rounded-lg transition-colors duration-200;
+    }
+
+    /* === REUSABLE ICON STYLES === */
+    .icon-interactive {
+        @apply text-brand-grey-dark dark:text-brand-grey-light hover:text-brand-orange transition-colors duration-200;
+    }
+
+    /* === REUSABLE INPUT STYLES === */
+    .input-default {
+        @apply w-full px-4 py-3 rounded-lg border-2 border-brand-grey/30 bg-brand-smoke dark:bg-brand-ink text-brand-ink dark:text-brand-smoke placeholder-brand-grey focus:outline-none focus:border-brand-orange transition-colors;
+    }
+
+    /* === PROSE/ARTICLE STYLING === */
+    .prose {
+        @apply text-brand-ink dark:text-brand-smoke text-lg;
+
+        h2 {
+            @apply mt-12 mb-6 pt-6 pb-3 border-t-2 border-brand-grey/20 relative font-bold text-brand-ink dark:text-brand-smoke text-2xl font-header;
+            font-weight: 700;
+
+            &:first-of-type {
+                @apply mt-8 border-t-0 pt-0;
+            }
+
+            &::before {
+                content: '';
+                @apply absolute -top-0.5 left-0 w-16 h-0.5 bg-brand-chestnut rounded-sm;
+            }
+        }
+
+        h3 {
+            @apply text-xl font-bold text-brand-ink dark:text-brand-smoke mt-8 mb-4 font-header;
+            font-weight: 600;
+        }
+
+        p {
+            @apply leading-relaxed my-4;
+        }
+
+        ul, ol {
+            @apply my-4 ml-6;
+            list-style-position: outside;
+        }
+
+        ul {
+            @apply list-disc;
+        }
+
+        ol {
+            @apply list-decimal;
+        }
+
+        li {
+            @apply text-brand-ink dark:text-brand-smoke mb-2;
+            margin-left: 0;
+        }
+
+        a {
+            @apply text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange underline;
+
+            &:hover {
+                @apply text-brand-ink dark:text-brand-smoke no-underline;
+            }
+        }
+
+        blockquote {
+            @apply border-l-4 border-brand-orange pl-4 italic text-brand-grey-dark dark:text-brand-grey-light contrast-less:text-brand-grey;
+        }
+
+        strong {
+            font-weight: 600;
+        }
+
+        code {
+            @apply bg-brand-grey/10 px-2 py-1 rounded text-sm font-mono text-brand-ink dark:text-brand-smoke;
+        }
+
+        pre {
+            @apply bg-brand-ink p-4 rounded-lg overflow-x-auto my-4;
+
+            code {
+                @apply bg-transparent p-0 rounded-none text-inherit;
+            }
+        }
+    }
+
+    /* === CARD/SECTION STYLING === */
+    .card, .section-card {
+        @apply bg-brand-smoke dark:bg-brand-ink border border-brand-grey/20 rounded-lg shadow-sm transition-all duration-300;
+
+        &:hover {
+            @apply shadow-md;
+        }
+    }
+
+    /* === EMBEDDED WORKING NOTE (BEM) === */
+    .embedded-working-note {
+        @apply my-6 rounded-lg border-l-4 border-brand-orange bg-brand-grey/10 p-4 shadow-sm transition-colors duration-200;
+    }
+
+    .embedded-working-note__header {
+        @apply mb-3 pb-2 border-b border-brand-grey/20;
+    }
+
+    .embedded-working-note__title {
+        @apply font-semibold text-base text-brand-ink dark:text-brand-smoke m-0;
+    }
+
+    .embedded-working-note__content {
+        @apply text-sm text-brand-ink dark:text-brand-smoke;
+
+        p {
+            @apply my-2 leading-relaxed;
+
+            &:first-child {
+                @apply mt-0;
+            }
+
+            &:last-child {
+                @apply mb-0;
+            }
+        }
+
+        a {
+            @apply text-brand-orange underline hover:text-brand-chestnut dark:hover:text-brand-smoke;
+        }
+    }
+
+    .embedded-working-note__footer {
+        @apply mt-3 pt-2 border-t border-brand-grey/20;
+    }
+
+    .embedded-working-note__link {
+        @apply text-xs font-semibold text-brand-orange no-underline;
+
+        &:hover {
+            @apply text-brand-chestnut underline;
+        }
+    }
+}
+
+/* === SYNTAX HIGHLIGHTING === */
+.highlight {
+    @apply text-brand-smoke;
+}
+
+.highlight pre {
+    @apply bg-brand-ink;
+    background-color: #001524 !important;
+}
+
+.highlight .c, .highlight .cm, .highlight .c1, .highlight .cs {
+    @apply text-brand-grey-light italic;
+}
+
+.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr, .highlight .kt {
+    @apply text-brand-orange font-semibold;
+}
+
+.highlight .s, .highlight .sa, .highlight .sb, .highlight .sc, .highlight .sd, .highlight .s1, .highlight .s2, .highlight .se, .highlight .sh, .highlight .si, .highlight .sx, .highlight .sr, .highlight .s3, .highlight .ss {
+    color: #F58F29;
+}
+
+.highlight .n, .highlight .na, .highlight .nb, .highlight .nc, .highlight .no, .highlight .nd, .highlight .ni, .highlight .ne, .highlight .nf, .highlight .nl, .highlight .nn, .highlight .nx, .highlight .py, .highlight .nt, .highlight .nv {
+    @apply text-brand-smoke;
+}
+
+.highlight .m, .highlight .mf, .highlight .mh, .highlight .mi, .highlight .il, .highlight .mo {
+    color: #767B91;
+}
+
+.highlight .o, .highlight .ow {
+    @apply text-brand-smoke;
+}
