@@ -16,5 +16,12 @@ dist/
 !.env.example
 .dev.vars
 
+# CI-generated files (written by GitHub Actions workflows before npm run build)
+# Do not create these manually — they are generated fresh in every CI run.
+src/data/buildinfo.ts
+
+# hi-redirector config — fetched from CMS at deploy time (not committed)
+cloudflare-workers/hi-redirector/hi-redirects.json
+
 # Contexts (planning docs)
 contexts

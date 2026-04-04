@@ -7,5 +7,13 @@
 	},
 	"observability": {
 		"enabled": true
+	},
+	// Staging environment: deploys to a separate worker so production traffic is unaffected.
+	// Deploy: wrangler deploy --env staging
+	// URL: edwardjensen-net-astro-staging.<account>.workers.dev
+	"env": {
+		"staging": {
+			"name": "edwardjensen-net-astro-staging"
+		}
 	}
 }

@@ -1,7 +1,7 @@
 /**
  * TypeScript interfaces for all Payload CMS REST API content types.
  * Derived from the API fixtures in contexts/fixtures/.
- * The cache worker serves data at: ${REST_API_BASE_URL}/:collection
+ * The cache worker serves data at: ${CONTENT_RELAY_URL}/v2/:collection
  */
 
 export interface PayloadImage {

@@ -1,0 +1,61 @@
+name: Deploy hi.edwardjensen.net Redirector
+
+# Deploys the hi.edwardjensen.net redirect worker whenever its source files or
+# redirect config changes. Fetches the latest redirect configuration from the
+# CMS via Tailscale VPN before deploying.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare-workers/hi-redirector/**'
+      - '_data/hi-redirects.json'
+      - '.github/workflows/deploy-hi-redirector.yml'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [hi_redirector_update]
+
+jobs:
+  get-redirects-and-deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: cloudflare-workers/hi-redirector
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Connect to Tailscale VPN
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+          args: --accept-dns=true
+
+      - name: Fetch redirects from CMS
+        env:
+          CMS_URL: ${{ secrets.CMS_URL }}
+        run: |
+          echo "Fetching redirects from CMS..."
+          curl -sf "${CMS_URL}/api/globals/redirects/export-json" \
+            -o hi-redirects.json
+          echo "Fetched redirects:"
+          cat hi-redirects.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@4
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy --config wrangler.toml

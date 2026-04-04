@@ -1,0 +1,21 @@
+name = "ejnet_content_relay"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Disable workers.dev subdomain — served exclusively via the custom domain below.
+workers_dev = false
+
+# Custom domain routing.
+routes = [
+  { pattern = "contentrelay.edwardjensen.net", custom_domain = true }
+]
+
+# KV namespace binding.
+# This is the same namespace as the previous graphql-cache worker — no migration needed.
+# To create a new namespace: wrangler kv namespace create GRAPHQL_CACHE
+[[kv_namespaces]]
+binding = "GRAPHQL_CACHE"
+id = "59005b7fe1ea487486881a985876ba2d"
+
+# Secrets (set via wrangler secret put):
+#   CONTENT_RELAY_API_KEY - API key for write operations (POST /v2/refresh/:collection)

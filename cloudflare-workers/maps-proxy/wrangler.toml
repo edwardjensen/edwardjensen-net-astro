@@ -1,0 +1,10 @@
+name = "maps-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# The API key must be set as a secret:
+# wrangler secret put GOOGLE_MAPS_API_KEY
+
+routes = [
+  { pattern = "ejnetmaps.edwardjensenprojects.com", custom_domain = true }
+]

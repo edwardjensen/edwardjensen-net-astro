@@ -1,0 +1,333 @@
+name: Deploy Staging Site
+
+# Unified staging deployment with configurable site code, CMS source, and
+# deployment target. Configuration is determined from the trigger type.
+#
+# Trigger mappings:
+#   push to main:               main branch + staging CMS + cloudflare Workers
+#   staging_cms_publish:        latest v* tag + staging CMS + local-server
+#   staging_cms_photo_publish:  main branch + staging CMS + local-server
+#   manual (defaults):          main branch + production CMS + local-server
+#
+# Site titles by configuration:
+#   main + production   → "Edward Jensen [CODE STAGING]"
+#   main + staging      → "Edward Jensen [STAGING CMS + CODE]"
+#   latest-tag + prod   → "Edward Jensen [TAG STAGING]"
+#   latest-tag + staging → "Edward Jensen [CMS STAGING]"
+#
+# Cloudflare staging deploys to a separate worker (edwardjensen-net-astro-staging)
+# defined by the "staging" environment in wrangler.jsonc. This avoids overwriting
+# the production worker. The staging workers.dev URL is printed in the summary.
+# Note: The worker must be deployed via deploy-prod-site.yml at least once before
+# the staging environment also exists — wrangler creates it on first deploy.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      site_code:
+        description: 'Site code source'
+        required: true
+        type: choice
+        default: 'main'
+        options: [main, latest-tag]
+      cms_source:
+        description: 'CMS data source'
+        required: true
+        type: choice
+        default: 'production'
+        options: [production, staging]
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        type: choice
+        default: 'local-server'
+        options: [local-server, cloudflare]
+  repository_dispatch:
+    types: [staging_cms_publish, staging_cms_photo_publish]
+
+jobs:
+  resolve-config:
+    name: Resolve Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      site_code: ${{ steps.config.outputs.site_code }}
+      cms_source: ${{ steps.config.outputs.cms_source }}
+      deploy_target: ${{ steps.config.outputs.deploy_target }}
+      site_title: ${{ steps.config.outputs.site_title }}
+
+    steps:
+      - name: Determine configuration
+        id: config
+        run: |
+          case "${{ github.event_name }}" in
+            push)
+              SITE_CODE="main"
+              CMS_SOURCE="staging"
+              DEPLOY_TARGET="cloudflare"
+              ;;
+            repository_dispatch)
+              case "${{ github.event.action }}" in
+                staging_cms_publish)
+                  SITE_CODE="latest-tag"
+                  CMS_SOURCE="staging"
+                  DEPLOY_TARGET="local-server"
+                  ;;
+                staging_cms_photo_publish)
+                  SITE_CODE="main"
+                  CMS_SOURCE="staging"
+                  DEPLOY_TARGET="local-server"
+                  ;;
+                *)
+                  SITE_CODE="main"
+                  CMS_SOURCE="production"
+                  DEPLOY_TARGET="local-server"
+                  ;;
+              esac
+              ;;
+            workflow_dispatch)
+              SITE_CODE="${{ inputs.site_code }}"
+              CMS_SOURCE="${{ inputs.cms_source }}"
+              DEPLOY_TARGET="${{ inputs.deploy_target }}"
+              ;;
+            *)
+              # Fallback defaults
+              SITE_CODE="main"
+              CMS_SOURCE="production"
+              DEPLOY_TARGET="local-server"
+              ;;
+          esac
+
+          # Derive site title from configuration combination
+          case "${SITE_CODE}_${CMS_SOURCE}" in
+            main_production)       SITE_TITLE="Edward Jensen [CODE STAGING]" ;;
+            main_staging)          SITE_TITLE="Edward Jensen [STAGING CMS + CODE]" ;;
+            latest-tag_production) SITE_TITLE="Edward Jensen [TAG STAGING]" ;;
+            latest-tag_staging)    SITE_TITLE="Edward Jensen [CMS STAGING]" ;;
+            *)                     SITE_TITLE="Edward Jensen [STAGING]" ;;
+          esac
+
+          echo "site_code=${SITE_CODE}" >> $GITHUB_OUTPUT
+          echo "cms_source=${CMS_SOURCE}" >> $GITHUB_OUTPUT
+          echo "deploy_target=${DEPLOY_TARGET}" >> $GITHUB_OUTPUT
+          echo "site_title=${SITE_TITLE}" >> $GITHUB_OUTPUT
+
+          echo "## Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site Code | ${SITE_CODE} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CMS Source | ${CMS_SOURCE} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Target | ${DEPLOY_TARGET} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site Title | ${SITE_TITLE} |" >> $GITHUB_STEP_SUMMARY
+
+  build-staging:
+    name: Build Staging Site
+    runs-on: ubuntu-latest
+    needs: resolve-config
+    # Use staging environment for DEPLOY_* secrets (local-server).
+    # When deploying to cloudflare, the deploy job uses production environment
+    # for CLOUDFLARE_* secrets. CONTENT_RELAY_URL is in both environments.
+    environment: staging
+    outputs:
+      build_version: ${{ steps.build-info.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Checkout latest production tag
+        if: needs.resolve-config.outputs.site_code == 'latest-tag'
+        run: |
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          if [[ -z "${LATEST_TAG}" ]]; then
+            echo "::error::No production tag found."
+            exit 1
+          fi
+          echo "Checking out: ${LATEST_TAG}"
+          git checkout "${LATEST_TAG}"
+
+      - name: Determine build version
+        id: build-info
+        run: |
+          if [[ "${{ needs.resolve-config.outputs.site_code }}" == "latest-tag" ]]; then
+            VERSION=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          else
+            VERSION="main-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Connect to Tailscale VPN
+        if: needs.resolve-config.outputs.cms_source == 'staging'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+          args: --accept-dns=true
+
+      - name: Generate build info
+        run: |
+          VERSION="${{ steps.build-info.outputs.version }}"
+          SITE_TITLE="${{ needs.resolve-config.outputs.site_title }}"
+          cat > src/data/buildinfo.ts << HEREDOC
+          // Auto-generated by CI/CD. Do not edit manually.
+          export const buildInfo = {
+            commit: "${{ github.sha }}",
+            buildId: "${{ github.run_id }}",
+            version: "${VERSION}",
+            buildName: "${{ github.workflow }}",
+            siteTitle: "${SITE_TITLE}",
+          } as const;
+          HEREDOC
+
+      - name: Build site
+        env:
+          # For production CMS source: reads from the public content relay.
+          # For staging CMS source: reads directly from staging CMS via Tailscale VPN.
+          # REST_API_KEY is not needed for direct CMS access (staging), only for relay.
+          # Note: STAGING_CMS_REST_URL must be the base URL without /v2
+          # (e.g. https://staging.edwardjensencms.com/api), as /v2 is appended by the client.
+          CONTENT_RELAY_URL: ${{ needs.resolve-config.outputs.cms_source == 'staging' && vars.STAGING_CMS_REST_URL || secrets.CONTENT_RELAY_URL }}
+          REST_API_KEY: ${{ needs.resolve-config.outputs.cms_source == 'staging' && '' || secrets.REST_API_KEY }}
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: staging-site
+          path: dist/
+          retention-days: 1
+
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Workers (Staging)
+    runs-on: ubuntu-latest
+    needs: [resolve-config, build-staging]
+    if: needs.resolve-config.outputs.deploy_target == 'cloudflare'
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: staging-site
+          path: dist/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@4
+
+      - name: Deploy to Cloudflare Workers (staging environment)
+        # Deploys to the "staging" wrangler environment (edwardjensen-net-astro-staging),
+        # a separate worker from production. Does not touch production traffic.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy --env staging
+
+  deploy-local-server:
+    name: Deploy to Local Server
+    runs-on: ubuntu-latest
+    needs: [resolve-config, build-staging]
+    if: needs.resolve-config.outputs.deploy_target == 'local-server'
+    environment: staging
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: staging-site
+          path: dist/
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          cat >> ~/.ssh/config << EOF
+          Host ${{ secrets.DEPLOY_HOST }}
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null
+            ConnectionAttempts 3
+            ConnectTimeout 30
+            ServerAliveInterval 15
+            ServerAliveCountMax 3
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Connect to Tailscale VPN
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy to staging server
+        run: |
+          for i in 1 2 3; do
+            rsync -avz --no-times --no-perms --no-owner --no-group --delete \
+              dist/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/sitedata/ \
+              && exit 0
+            echo "Attempt $i failed"
+            [ $i -lt 3 ] && echo "Retrying in 10 seconds..." && sleep 10
+          done
+          exit 1
+
+      - name: Restart web server on staging
+        run: |
+          for i in 1 2 3; do
+            ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              'docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml restart' \
+              && exit 0
+            echo "Attempt $i failed"
+            [ $i -lt 3 ] && echo "Retrying in 10 seconds..." && sleep 10
+          done
+          exit 1
+
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [resolve-config, build-staging, deploy-cloudflare, deploy-local-server]
+    if: always() && (needs.deploy-cloudflare.result == 'success' || needs.deploy-local-server.result == 'success')
+
+    steps:
+      - name: Print summary
+        run: |
+          echo "## Staging Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Site Code | ${{ needs.resolve-config.outputs.site_code }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CMS Source | ${{ needs.resolve-config.outputs.cms_source }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Target | ${{ needs.resolve-config.outputs.deploy_target }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Version | ${{ needs.build-staging.outputs.build_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.resolve-config.outputs.deploy_target }}" == "cloudflare" ]]; then
+            echo "**Site URL:** \`edwardjensen-net-astro-staging.<account>.workers.dev\`" >> $GITHUB_STEP_SUMMARY
+            echo "_Check the Cloudflare Workers dashboard for the exact workers.dev URL._" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Site URL:** https://stagingsite.edwardjensencms.com" >> $GITHUB_STEP_SUMMARY
+          fi

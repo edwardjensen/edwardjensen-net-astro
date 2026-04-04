@@ -2,7 +2,7 @@
  * Payload CMS REST API client.
  *
  * Fetches all content at build time from the cache worker.
- * Base URL is set via REST_API_BASE_URL env var (no trailing slash).
+ * Base URL is set via CONTENT_RELAY_URL env var (no trailing slash, no /v2).
  * Optional auth via REST_API_KEY env var.
  *
  * Each exported function returns all documents (auto-paginates).
@@ -21,14 +21,14 @@ import type {
 const PAGE_LIMIT = 100;
 
 function getBaseUrl(): string {
-  const url = import.meta.env.REST_API_BASE_URL;
+  const url = import.meta.env.CONTENT_RELAY_URL;
   if (!url) {
     throw new Error(
-      "REST_API_BASE_URL environment variable is not set. " +
+      "CONTENT_RELAY_URL environment variable is not set. " +
         "Set it in .env.local for local development."
     );
   }
-  return url.replace(/\/$/, "");
+  return url.replace(/\/$/, "") + "/v2";
 }
 
 function getApiKey(): string | undefined {

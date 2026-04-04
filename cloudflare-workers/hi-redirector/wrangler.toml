@@ -1,0 +1,7 @@
+name = "hi-redirector"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+routes = [
+  { pattern = "hi.edwardjensen.net", custom_domain = true }
+]
