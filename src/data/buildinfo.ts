@@ -5,6 +5,7 @@
 export const buildInfo = {
   commit: "local",
   buildId: "local",
+  buildDate: "local",
   version: "local",
   buildName: "local",
   siteTitle: "LOCAL DEV" as string | undefined,

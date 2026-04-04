@@ -9,6 +9,7 @@ const currentYear = new Date().getFullYear();
 const info = buildInfo as {
   commit: string;
   buildId: string;
+  buildDate: string;
   version: string;
   buildName: string;
   siteTitle?: string;
@@ -46,7 +47,7 @@ const REPO = "https://github.com/edwardjensen/edwardjensen-net-astro";
             {" · edwardjensen.net "}
             <a href={`${REPO}/releases/tag/${info.version}`} target="_blank" rel="noopener noreferrer" aria-label={`View release ${info.version} on GitHub (opens in new tab)`} class="underline">{info.version}</a>
             {shortCommit && (<>{" ("}<a href={`${REPO}/commit/${info.commit}`} target="_blank" rel="noopener noreferrer" aria-label={`View commit ${shortCommit} on GitHub (opens in new tab)`} class="underline">{shortCommit}</a>{")"}</>)}
-            {" · Built ("}
+            {" · Built "}{info.buildDate}{" ("}
             <a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>
             {")"}
           </>
@@ -61,7 +62,7 @@ const REPO = "https://github.com/edwardjensen/edwardjensen-net-astro";
             {" · edwardjensen.net "}
             <span class="text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange font-semibold uppercase">staging</span>
             {shortCommit && (<>{" ("}<a href={`${REPO}/commit/${info.commit}`} target="_blank" rel="noopener noreferrer" aria-label={`View commit ${shortCommit} on GitHub (opens in new tab)`} class="underline">{shortCommit}</a>{")"}</>)}
-            {info.buildId && (<>{" · Built ("}<a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>{")"}</>)}
+            {info.buildId && (<>{" · Built "}{info.buildDate}{" ("}<a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>{")"}</>)}
           </>
         )}
         {isLocal && (
