@@ -17,8 +17,8 @@ dist/
 .dev.vars
 
 # CI-generated files (written by GitHub Actions workflows before npm run build)
-# Do not create these manually — they are generated fresh in every CI run.
-src/data/buildinfo.ts
+# src/data/buildinfo.ts is committed as a local dev fallback; CI overwrites it.
+# Do not commit the CI-generated version.
 
 # hi-redirector config — fetched from CMS at deploy time (not committed)
 cloudflare-workers/hi-redirector/hi-redirects.json

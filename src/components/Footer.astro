@@ -1,7 +1,25 @@
 ---
 import { footerText } from "../data/footer-text";
+import { buildInfo } from "../data/buildinfo";
 
 const currentYear = new Date().getFullYear();
+
+// siteTitle is optional — present only in staging/local builds, absent in production.
+// Cast to allow safe access to the optional field across all build types.
+const info = buildInfo as {
+  commit: string;
+  buildId: string;
+  version: string;
+  buildName: string;
+  siteTitle?: string;
+};
+
+const siteTitle = info.siteTitle;
+const isLocal = info.commit === "local";
+const isStaging = !isLocal && siteTitle !== undefined;
+const isProd = !isLocal && siteTitle === undefined;
+const shortCommit = isLocal ? null : info.commit.slice(0, 7);
+const REPO = "https://github.com/edwardjensen/edwardjensen-net-astro";
 ---
 
 <div class="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] section-bg border-t border-brand-grey/20 dark:border-brand-grey/30 transition-colors duration-300">
@@ -19,25 +37,60 @@ const currentYear = new Date().getFullYear();
     </div>
     <div>
       <p>
-        <span class="text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange font-semibold">
-          ⚠ LOCAL DEVELOPMENT ENVIRONMENT
-        </span>
-        {" · "}
-        <a
-          href="https://astro.build/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Astro static site framework (opens in new tab)"
-          class="underline"
-        >Astro</a>
-        {" + "}
-        <a
-          href="https://payloadcms.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Payload CMS (opens in new tab)"
-          class="underline"
-        >Payload CMS</a>
+        {isProd && (
+          <>
+            {"Powered by "}
+            <a href="https://astro.build/" target="_blank" rel="noopener noreferrer" aria-label="Astro static site framework (opens in new tab)" class="underline">Astro</a>
+            {" + "}
+            <a href="https://payloadcms.com/" target="_blank" rel="noopener noreferrer" aria-label="Payload CMS (opens in new tab)" class="underline">Payload CMS</a>
+            {" · edwardjensen.net "}
+            <a href={`${REPO}/releases/tag/${info.version}`} target="_blank" rel="noopener noreferrer" aria-label={`View release ${info.version} on GitHub (opens in new tab)`} class="underline">{info.version}</a>
+            {shortCommit && (
+              <>
+                {" ("}
+                <a href={`${REPO}/commit/${info.commit}`} target="_blank" rel="noopener noreferrer" aria-label={`View commit ${shortCommit} on GitHub (opens in new tab)`} class="underline">{shortCommit}</a>
+                {")"}
+              </>
+            )}
+            {" · Built ("}
+            <a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>
+            {")"}
+          </>
+        )}
+        {isStaging && (
+          <>
+            <span class="text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange font-semibold">⚠ STAGING ENVIRONMENT</span>
+            {" · Powered by "}
+            <a href="https://astro.build/" target="_blank" rel="noopener noreferrer" aria-label="Astro static site framework (opens in new tab)" class="underline">Astro</a>
+            {" + "}
+            <a href="https://payloadcms.com/" target="_blank" rel="noopener noreferrer" aria-label="Payload CMS (opens in new tab)" class="underline">Payload CMS</a>
+            {" · edwardjensen.net "}
+            <span class="text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange font-semibold uppercase">staging</span>
+            {shortCommit && (
+              <>
+                {" ("}
+                <a href={`${REPO}/commit/${info.commit}`} target="_blank" rel="noopener noreferrer" aria-label={`View commit ${shortCommit} on GitHub (opens in new tab)`} class="underline">{shortCommit}</a>
+                {")"}
+              </>
+            )}
+            {info.buildId && (
+              <>
+                {" · Built ("}
+                <a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>
+                {")"}
+              </>
+            )}
+          </>
+        )}
+        {isLocal && (
+          <>
+            <span class="text-brand-chestnut dark:text-brand-orange contrast-less:text-brand-orange font-semibold">⚠ LOCAL DEVELOPMENT ENVIRONMENT</span>
+            {" · "}
+            <a href="https://astro.build/" target="_blank" rel="noopener noreferrer" aria-label="Astro static site framework (opens in new tab)" class="underline">Astro</a>
+            {" + "}
+            <a href="https://payloadcms.com/" target="_blank" rel="noopener noreferrer" aria-label="Payload CMS (opens in new tab)" class="underline">Payload CMS</a>
+          </>
+        )}
       </p>
     </div>
   </div>
