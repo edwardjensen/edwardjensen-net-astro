@@ -2,28 +2,11 @@
 	"compatibility_date": "2026-04-03",
 	// Worker name is supplied at deploy time via --name $CF_DEPLOYMENT_WORKER (from CI secrets).
 	// See .github/workflows/deploy-prod-site.yml and deploy-staging-direct.yml.
+	// 'main' is intentionally absent — the Astro Cloudflare adapter generates
+	// dist/server/wrangler.json with the correct entry point after build.
+	// CI deploys using: wrangler deploy --config dist/server/wrangler.json --name <worker>
 	"name": "edwardjensen-net-astro",
-	"main": "./dist/server/entry.mjs",
-	"assets": {
-		"directory": "./dist/client",
-		"not_found_handling": "404-page"
-	},
 	"observability": {
 		"enabled": true
-	},
-	// Staging environment: deploys to a SEPARATE worker.
-	// Worker name is supplied at deploy time via --name $CF_DEPLOYMENT_WORKER.
-	// Deploy: wrangler deploy --env staging --name <CF_DEPLOYMENT_WORKER>
-	//
-	// Note: 'assets' and 'main' are non-inheritable and must be specified per environment.
-	"env": {
-		"staging": {
-			"workers_dev": true,
-			"main": "./dist/server/entry.mjs",
-			"assets": {
-				"directory": "./dist/client",
-				"not_found_handling": "404-page"
-			}
-		}
 	}
 }

@@ -152,10 +152,12 @@ jobs:
         run: npm install -g wrangler@4
 
       - name: Deploy to Cloudflare Workers
+        # Uses the adapter-generated dist/server/wrangler.json which has the correct
+        # entry point (dist/server/entry.mjs) and asset paths (dist/client/).
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: wrangler deploy --name ${{ secrets.CF_DEPLOYMENT_WORKER }}
+        run: wrangler deploy --config dist/server/wrangler.json --name ${{ secrets.CF_DEPLOYMENT_WORKER }}
 
   create-release:
     name: Create GitHub Release
