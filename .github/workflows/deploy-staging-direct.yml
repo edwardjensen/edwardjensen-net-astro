@@ -21,7 +21,7 @@ jobs:
   build-and-deploy:
     name: Build and Deploy to Cloudflare Staging
     runs-on: ubuntu-latest
-    environment: production
+    environment: staging
 
     steps:
       - name: Checkout repository
