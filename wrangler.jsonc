@@ -1,25 +1,27 @@
 {
 	"compatibility_date": "2026-04-03",
+	// Worker name is supplied at deploy time via --name $CF_DEPLOYMENT_WORKER (from CI secrets).
+	// See .github/workflows/deploy-prod-site.yml and deploy-staging-direct.yml.
 	"name": "edwardjensen-net-astro",
+	"main": "./dist/server/entry.mjs",
 	"assets": {
-		"directory": "./dist",
+		"directory": "./dist/client",
 		"not_found_handling": "404-page"
 	},
 	"observability": {
 		"enabled": true
 	},
-	// Staging environment: deploys to a SEPARATE worker (edwardjensen-net-astro-staging).
-	// This is completely isolated from the production worker (edwardjensen-net-astro).
-	// Deploy: wrangler deploy --env staging
-	// URL: edwardjensen-net-astro-staging.<account>.workers.dev
+	// Staging environment: deploys to a SEPARATE worker.
+	// Worker name is supplied at deploy time via --name $CF_DEPLOYMENT_WORKER.
+	// Deploy: wrangler deploy --env staging --name <CF_DEPLOYMENT_WORKER>
 	//
-	// Note: 'assets' is non-inheritable and must be specified per environment.
+	// Note: 'assets' and 'main' are non-inheritable and must be specified per environment.
 	"env": {
 		"staging": {
-			"name": "edwardjensen-net-astro-staging",
 			"workers_dev": true,
+			"main": "./dist/server/entry.mjs",
 			"assets": {
-				"directory": "./dist",
+				"directory": "./dist/client",
 				"not_found_handling": "404-page"
 			}
 		}

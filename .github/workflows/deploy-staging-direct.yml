@@ -66,9 +66,10 @@ jobs:
         run: npm install -g wrangler@4
 
       - name: Deploy to Cloudflare Workers (staging environment)
-        # Deploys to the "staging" wrangler environment (edwardjensen-net-astro-staging),
-        # a separate worker from production. Does not touch production traffic.
+        # Deploys to the "staging" wrangler environment using the worker name from
+        # secrets.CF_DEPLOYMENT_WORKER (set per-environment in GitHub).
+        # Does not touch the production worker.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: wrangler deploy --env staging
+        run: wrangler deploy --env staging --name ${{ secrets.CF_DEPLOYMENT_WORKER }}
