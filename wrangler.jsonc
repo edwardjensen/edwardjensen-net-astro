@@ -5,6 +5,10 @@
 	// 'main' is intentionally absent — the Astro Cloudflare adapter generates
 	// dist/server/wrangler.json with the correct entry point after build.
 	// CI deploys using: wrangler deploy --config dist/server/wrangler.json --name <worker>
+	//
+	// Custom domains are bound via the Cloudflare dashboard (persists across deploys):
+	//   Production worker: www.edwardjensen.net
+	//   Staging worker:    <name>.<account>.workers.dev (workers_dev enabled by default)
 	"name": "edwardjensen-net-astro",
 	"observability": {
 		"enabled": true
