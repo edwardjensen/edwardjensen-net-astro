@@ -3,7 +3,13 @@ name: Deploy Staging Site
 # Unified staging deployment with configurable site code, CMS source, and
 # deployment target. Configuration is determined from the trigger type.
 #
-# Trigger mappings:
+# TEMPORARILY DEACTIVATED (2026-04-04): Replaced by deploy-staging-direct.yml,
+# a simplified workflow that builds from the production CMS only.
+# See contexts/CONTENT_RELAY_BYPASS.md for full context.
+# To re-enable: restore the commented-out triggers below and delete
+# deploy-staging-direct.yml.
+#
+# Trigger mappings (original):
 #   push to main:               main branch + staging CMS + cloudflare Workers
 #   staging_cms_publish:        latest v* tag + staging CMS + local-server
 #   staging_cms_photo_publish:  main branch + staging CMS + local-server
@@ -25,30 +31,32 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: [main]
+  # Temporarily disabled — see comment above.
+  # push:
+  #   branches: [main]
+  # workflow_dispatch:
+  #   inputs:
+  #     site_code:
+  #       description: 'Site code source'
+  #       required: true
+  #       type: choice
+  #       default: 'main'
+  #       options: [main, latest-tag]
+  #     cms_source:
+  #       description: 'CMS data source'
+  #       required: true
+  #       type: choice
+  #       default: 'production'
+  #       options: [production, staging]
+  #     deploy_target:
+  #       description: 'Deployment target'
+  #       required: true
+  #       type: choice
+  #       default: 'local-server'
+  #       options: [local-server, cloudflare]
+  # repository_dispatch:
+  #   types: [staging_cms_publish, staging_cms_photo_publish]
   workflow_dispatch:
-    inputs:
-      site_code:
-        description: 'Site code source'
-        required: true
-        type: choice
-        default: 'main'
-        options: [main, latest-tag]
-      cms_source:
-        description: 'CMS data source'
-        required: true
-        type: choice
-        default: 'production'
-        options: [production, staging]
-      deploy_target:
-        description: 'Deployment target'
-        required: true
-        type: choice
-        default: 'local-server'
-        options: [local-server, cloudflare]
-  repository_dispatch:
-    types: [staging_cms_publish, staging_cms_photo_publish]
 
 jobs:
   resolve-config:
@@ -174,7 +182,6 @@ jobs:
         run: npm ci
 
       - name: Connect to Tailscale VPN
-        if: needs.resolve-config.outputs.cms_source == 'staging'
         uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -199,13 +206,12 @@ jobs:
 
       - name: Build site
         env:
-          # For production CMS source: reads from the public content relay.
-          # For staging CMS source: reads directly from staging CMS via Tailscale VPN.
-          # REST_API_KEY is not needed for direct CMS access (staging), only for relay.
-          # Note: STAGING_CMS_REST_URL must be the base URL without /v2
-          # (e.g. https://staging.edwardjensencms.com/api), as /v2 is appended by the client.
-          CONTENT_RELAY_URL: ${{ needs.resolve-config.outputs.cms_source == 'staging' && vars.STAGING_CMS_REST_URL || secrets.CONTENT_RELAY_URL }}
-          REST_API_KEY: ${{ needs.resolve-config.outputs.cms_source == 'staging' && '' || secrets.REST_API_KEY }}
+          # Both CMS sources now fetch directly via Tailscale VPN (content relay bypassed).
+          # For production CMS: uses PROD_CMS_REST_URL (production CMS via VPN).
+          # For staging CMS: uses STAGING_CMS_REST_URL (staging CMS via VPN).
+          # Neither URL should include /v2 — it is appended by the fetch client.
+          CONTENT_RELAY_URL: ${{ needs.resolve-config.outputs.cms_source == 'staging' && vars.STAGING_CMS_REST_URL || vars.PROD_CMS_REST_URL }}
+          REST_API_KEY: ${{ needs.resolve-config.outputs.cms_source == 'staging' && secrets.STAGING_CMS_API_KEY || '' }}
         run: npm run build
 
       - name: Upload artifact

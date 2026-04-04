@@ -3,13 +3,19 @@ name: Deploy Content Relay Worker
 # Deploys the Cloudflare KV content relay worker whenever its source files change.
 # This is the worker that caches Payload CMS REST API responses in Cloudflare KV,
 # making content available to GitHub Actions builds without VPN access.
+#
+# TEMPORARILY DEACTIVATED (2026-04-04): Automatic deployments paused while
+# the content relay architecture is being redesigned. All builds now fetch
+# directly from the CMS via Tailscale VPN (see contexts/CONTENT_RELAY_BYPASS.md).
+# To re-enable, restore the commented-out push trigger below.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'cloudflare-workers/content-relay/**'
-      - '.github/workflows/deploy-content-relay.yml'
+  # Temporarily disabled — see comment above.
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'cloudflare-workers/content-relay/**'
+  #     - '.github/workflows/deploy-content-relay.yml'
   workflow_dispatch:
 
 jobs:

@@ -1,47 +1,31 @@
-name: Republish Production Site
+name: Deploy Staging Site (Direct CMS)
 
-# Rebuilds and redeploys the production site with the latest CMS content.
-# Connects to the production CMS directly via Tailscale VPN, builds from the
-# latest production tag, and deploys.
+# Simplified staging deployment: builds main branch from the production CMS
+# via Tailscale VPN and deploys to the Cloudflare staging worker.
 #
-# Triggers on CMS publish events (content or photography) or manual dispatch.
+# This is a temporary replacement for deploy-staging.yml while the content
+# relay architecture is being redesigned. See contexts/CONTENT_RELAY_BYPASS.md.
 #
-# NOTE: The content relay refresh step has been temporarily removed. Builds now
-# fetch directly from the CMS. See contexts/CONTENT_RELAY_BYPASS.md.
+# Deploys to the "staging" wrangler environment (edwardjensen-net-astro-staging),
+# a separate worker from production. Does not touch production traffic.
 
 permissions:
   contents: read
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  repository_dispatch:
-    types: ['prod_cms_publish', 'prod_cms_photo_publish']
 
 jobs:
   build-and-deploy:
-    name: Build and Deploy Site
+    name: Build and Deploy to Cloudflare Staging
     runs-on: ubuntu-latest
     environment: production
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: main
-
-      - name: Checkout latest production tag
-        run: |
-          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
-
-          if [[ -z "${LATEST_TAG}" ]]; then
-            echo "::error::No production tag found. Create a tag before republishing."
-            exit 1
-          fi
-
-          echo "Checking out: ${LATEST_TAG}"
-          git checkout "${LATEST_TAG}"
-          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -67,8 +51,9 @@ jobs:
           export const buildInfo = {
             commit: "${{ github.sha }}",
             buildId: "${{ github.run_id }}",
-            version: "${LATEST_TAG}",
+            version: "main-$(git rev-parse --short HEAD)",
             buildName: "${{ github.workflow }}",
+            siteTitle: "Edward Jensen [STAGING]",
           } as const;
           HEREDOC
 
@@ -80,8 +65,10 @@ jobs:
       - name: Install Wrangler
         run: npm install -g wrangler@4
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy to Cloudflare Workers (staging environment)
+        # Deploys to the "staging" wrangler environment (edwardjensen-net-astro-staging),
+        # a separate worker from production. Does not touch production traffic.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: wrangler deploy
+        run: wrangler deploy --env staging
