@@ -72,7 +72,7 @@ The brand color palette, typography, and component classes are defined in `src/s
 2. Add TypeScript types in `src/types/payload.ts`
 3. Create the page in `src/pages/` using `getStaticPaths()` + `Astro.props`
 4. Use `ContentWrapper` or `BaseLayout` as the layout
-5. Add the URL to `src/data/a11y-urls.ts` for accessibility testing
+5. Add the URL to `src/data/a11y-urls.json` for accessibility testing
 
 ### Interactive features
 - Use Preact islands (`src/islands/`) for components needing client-side state
@@ -103,7 +103,7 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - Focus management in modals (trap focus, restore on close)
 - Color contrast compliance with the brand palette
 - pa11y checks must pass in CI — a PR that fails accessibility checks must not merge
-- Test URLs are defined in `src/data/a11y-urls.ts`
+- Test URLs are defined in `src/data/a11y-urls.json` (`src/data/a11y-urls.ts` re-exports them for Astro components)
 
 ## Deployment
 

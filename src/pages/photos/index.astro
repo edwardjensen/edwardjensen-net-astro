@@ -125,7 +125,7 @@ const galleryData = {
           {totalPages > 1 && (
             <nav aria-label="Photography pagination" class="mt-12">
               <div class="flex items-center justify-center gap-2 flex-wrap">
-                <span class="px-3 py-2 rounded text-sm font-semibold bg-brand-orange text-white" aria-current="page">1</span>
+                <span class="px-3 py-2 rounded text-sm font-semibold bg-brand-orange-dark text-white" aria-current="page">1</span>
                 {Array.from({ length: totalPages - 1 }, (_, i) => i + 2).map((num) => (
                   <a href={`/photos/page/${num}/`} class="px-3 py-2 rounded text-sm font-semibold text-body hover:text-brand-chestnut transition-colors" aria-label={`Page ${num}`}>
                     {num}

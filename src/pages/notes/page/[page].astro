@@ -52,7 +52,7 @@ const pageNums = buildPageNums(pageNum, totalPages);
 
   <div class="article-container">
     <!-- Page Header -->
-    <div class="bg-brand-orange text-white px-8 lg:px-12 pt-8 lg:pt-10 pb-6 lg:pb-8">
+    <div class="bg-brand-orange-dark text-white px-8 lg:px-12 pt-8 lg:pt-10 pb-6 lg:pb-8">
       <div class="flex items-center gap-4">
         <div class="hidden md:flex w-12 h-12 bg-white/20 rounded-xl items-center justify-center" aria-hidden="true">
           <i class="ph ph-notebook text-white text-xl" aria-hidden="true"></i>
@@ -101,7 +101,7 @@ const pageNums = buildPageNums(pageNum, totalPages);
                 class:list={[
                   "px-3 py-2 rounded text-sm font-semibold transition-colors",
                   num === pageNum
-                    ? "bg-brand-orange text-white"
+                    ? "bg-brand-orange-dark text-white"
                     : "text-body hover:text-brand-chestnut",
                 ]}
                 aria-label={`Page ${num}`}
