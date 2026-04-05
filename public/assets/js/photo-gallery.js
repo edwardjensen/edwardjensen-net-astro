@@ -63,6 +63,14 @@ window.photoGallery = function() {
       // Setup keyboard navigation
       this.setupKeyboardNavigation();
 
+      // Wire up image area click → toggleInfo (single listener, no double-fire risk)
+      const imageArea = document.getElementById('modal-image-area');
+      if (imageArea) {
+        imageArea.addEventListener('click', () => {
+          this.toggleInfo();
+        });
+      }
+
       // Store reference globally for modal access
       window.photoGalleryInstance = this;
 

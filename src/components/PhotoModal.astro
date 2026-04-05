@@ -54,15 +54,14 @@
     <div id="modal-main-content" class="h-screen flex flex-col transition-all duration-300">
       <!-- Image -->
       <div
-        class="flex-1 flex items-center justify-center px-4 pt-20 pb-4 relative min-h-0"
-        onclick="window.photoGalleryInstance?.toggleInfo()"
+        id="modal-image-area"
+        class="flex-1 flex items-center justify-center px-4 pt-20 pb-4 relative min-h-0 cursor-pointer"
       >
         <img
           id="modal-photo-image"
           src=""
           alt=""
-          class="max-w-full max-h-full object-contain rounded-lg cursor-pointer"
-          onclick="event.stopPropagation(); window.photoGalleryInstance?.toggleInfo()"
+          class="max-w-full max-h-full object-contain rounded-lg"
         />
 
         <!-- Overlay gradient -->
