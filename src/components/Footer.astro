@@ -48,8 +48,7 @@ const REPO = "https://github.com/edwardjensen/edwardjensen-net-astro";
             <a href={`${REPO}/releases/tag/${info.version}`} target="_blank" rel="noopener noreferrer" aria-label={`View release ${info.version} on GitHub (opens in new tab)`} class="underline">{info.version}</a>
             {shortCommit && (<>{" ("}<a href={`${REPO}/commit/${info.commit}`} target="_blank" rel="noopener noreferrer" aria-label={`View commit ${shortCommit} on GitHub (opens in new tab)`} class="underline">{shortCommit}</a>{")"}</>)}
             {" · Built "}{info.buildDate}{" ("}
-            <a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>
-            {")"}
+            <a href={`${REPO}/actions/runs/${info.buildId}`} target="_blank" rel="noopener noreferrer" aria-label={`View build ${info.buildId} on GitHub Actions (opens in new tab)`} class="underline">{info.buildId}</a>{")"}
           </>
         )}
         {isStaging && (

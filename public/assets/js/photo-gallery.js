@@ -616,7 +616,7 @@ window.photoGallery = function() {
       // Update content
       if (content) {
         if (hasContent) {
-          content.textContent = this.decodeHtml(photo.content.trim());
+          content.innerHTML = photo.content.trim();
           content.style.display = '';
         } else {
           content.style.display = 'none';
