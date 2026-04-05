@@ -16,6 +16,7 @@ window.photoGallery = function() {
 
     // Mode detection
     isFullMode: false, // true if JSON data store exists (photography index page)
+    isOnSinglePhotoPage: false, // true when init'd from a single photo page (close navigates away)
     sourceUrl: null, // URL to return to (tracks where user came from)
 
     // Modal state
@@ -296,6 +297,13 @@ window.photoGallery = function() {
     // Close modal
     closeModal(pushState = true) {
       if (!this.photoModal.isOpen) return;
+
+      // On single photo pages, closing navigates to sourceUrl (like handleBackClick)
+      // because there's no gallery underneath to show
+      if (this.isOnSinglePhotoPage) {
+        this.handleBackClick();
+        return;
+      }
 
       this.photoModal.isOpen = false;
       this.photoModal.photo = null;

@@ -286,6 +286,9 @@ const currentPhotoUrl = photoPath(photo.slug, photo.date);
     const gallery = (window as any).photoGallery();
     gallery.init("photo-gallery-data");
 
+    // Mark as single photo page so closeModal navigates away
+    gallery.isOnSinglePhotoPage = true;
+
     // Open this photo in the modal
     if (photoUrl) {
       gallery.sourceUrl = galleryUrl;
