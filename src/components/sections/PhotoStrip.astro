@@ -1,12 +1,12 @@
 ---
 /**
  * PhotoStrip section component
- * Horizontal scrolling strip of recent photos with simple-mode lightbox.
- * Clicking a photo opens the modal overlay without page navigation.
- * Falls back to direct links when JS is unavailable.
+ * Horizontal scrolling strip of recent photos.
+ * When galleryData is provided (homepage), uses full-mode gallery initialization
+ * so the modal has complete EXIF/location data and the info panel works.
+ * Falls back to direct links for no-JS.
  *
- * Reorders photos: newest in center, older alternating left/right (same as
- * the Jekyll photo-gallery include).
+ * Reorders photos: newest in center, older alternating left/right.
  */
 
 interface Photo {
@@ -19,6 +19,8 @@ interface Photo {
 
 interface Props {
   photos: Photo[];
+  /** Full gallery data store for full-mode modal (includes EXIF, location, etc.) */
+  galleryData?: object;
   /** Max photos to show in the strip (default 15) */
   limit?: number;
   scrollId?: string;
@@ -27,6 +29,7 @@ interface Props {
 
 const {
   photos,
+  galleryData,
   limit = 15,
   scrollId = "photo-strip-scroll",
   centerId = "photo-strip-center",
@@ -60,6 +63,11 @@ const leftReversed = [...leftPhotos].reverse();
     class="hidden lg:block absolute right-0 top-4 bottom-4 w-16 bg-gradient-to-l from-brand-smoke dark:from-brand-ink to-transparent z-10 pointer-events-none"
     aria-hidden="true"
   ></div>
+
+  <!-- Full gallery data store for full-mode modal (when provided) -->
+  {galleryData && (
+    <script id="photo-strip-gallery-data" type="application/json" set:html={JSON.stringify(galleryData)} />
+  )}
 
   <div
     id={scrollId}
@@ -161,41 +169,27 @@ const leftReversed = [...leftPhotos].reverse();
       <span class="font-semibold text-center px-4">More photos →</span>
     </a>
   </div>
-
-  <!-- Hidden photo data for simple-mode lightbox -->
-  <div id="photo-gallery-all-photos" class="hidden" aria-hidden="true">
-    {recent.map((photo) => (
-      <span
-        class="gallery-photo-data"
-        data-image={photo.imageUrl}
-        data-alt={photo.imageAlt}
-        data-caption={photo.title}
-        data-date={photo.date ?? ""}
-      />
-    ))}
-  </div>
 </div>
 
 <script src="/assets/js/photo-gallery.js" is:inline defer></script>
 
 <script define:vars={{ scrollId, centerId }}>
-  // Scroll centering and wheel handler run immediately (no dependency on gallery JS)
+  // Scroll centering and wheel handler — no dependency on gallery JS
   (function () {
-    const scrollContainer = document.getElementById(scrollId);
-    const centerPhoto = document.getElementById(centerId);
+    var scrollContainer = document.getElementById(scrollId);
+    var centerEl = document.getElementById(centerId);
 
-    if (scrollContainer && centerPhoto) {
-      const scrollLeft =
-        centerPhoto.offsetLeft -
+    if (scrollContainer && centerEl) {
+      scrollContainer.scrollLeft =
+        centerEl.offsetLeft -
         scrollContainer.offsetWidth / 2 +
-        centerPhoto.offsetWidth / 2;
-      scrollContainer.scrollLeft = scrollLeft;
+        centerEl.offsetWidth / 2;
     }
 
     if (scrollContainer) {
       scrollContainer.addEventListener(
         "wheel",
-        (e) => {
+        function (e) {
           if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
             e.preventDefault();
             scrollContainer.scrollLeft += e.deltaY;
@@ -206,29 +200,28 @@ const leftReversed = [...leftPhotos].reverse();
     }
   })();
 
-  // Gallery lightbox init must wait for deferred photo-gallery.js to load
+  // Gallery lightbox — must wait for deferred photo-gallery.js to load
   document.addEventListener("DOMContentLoaded", function () {
-    if (typeof window.photoGallery !== 'function') return;
+    if (typeof window.photoGallery !== "function") return;
 
     var scrollContainer = document.getElementById(scrollId);
     if (!scrollContainer) return;
 
+    var hasFullData = !!document.getElementById("photo-strip-gallery-data");
     var gallery = window.photoGallery();
-    gallery.init(); // No data element ID → simple mode
 
-    var links = scrollContainer.querySelectorAll('a[data-photo-url]');
-    links.forEach(function (link) {
-      link.addEventListener('click', function (e) {
-        e.preventDefault();
-        var img = link.querySelector('img');
-        if (!img) return;
-        var imgSrc = img.getAttribute('src');
-        var idx = gallery.photos.findIndex(function (p) { return p.image === imgSrc; });
-        if (idx >= 0) {
-          gallery.currentIndex = idx;
-          gallery.openPhotoSimple(gallery.photos[idx]);
-        }
+    if (hasFullData) {
+      // Full mode: JSON data store with EXIF — init reads it automatically
+      gallery.init("photo-strip-gallery-data");
+
+      scrollContainer.querySelectorAll("a[data-photo-url]").forEach(function (link) {
+        link.addEventListener("click", function (e) {
+          e.preventDefault();
+          var url = link.dataset.photoUrl;
+          if (url) gallery.openPhotoByUrl(url);
+        });
       });
-    });
+    }
+    // No else: if galleryData wasn't provided, links behave as normal hrefs
   });
 </script>
