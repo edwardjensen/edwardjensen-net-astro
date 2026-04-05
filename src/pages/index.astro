@@ -37,6 +37,7 @@ const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
   title: p.title,
   imageUrl: p.image?.url ?? "",
   imageAlt: p.image?.alt ?? p.title,
+  date: p.date,
 }));
 ---
 

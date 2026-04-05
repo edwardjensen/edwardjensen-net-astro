@@ -1,9 +1,9 @@
 ---
 /**
  * PhotoStrip section component
- * Horizontal scrolling strip of recent photos.
- * Simple mode: links go directly to photo pages (no URL-routing modal yet—
- * the full PhotoModal Preact island is wired up in Sub-Phase 2.4).
+ * Horizontal scrolling strip of recent photos with simple-mode lightbox.
+ * Clicking a photo opens the modal overlay without page navigation.
+ * Falls back to direct links when JS is unavailable.
  *
  * Reorders photos: newest in center, older alternating left/right (same as
  * the Jekyll photo-gallery include).
@@ -14,6 +14,7 @@ interface Photo {
   title: string;
   imageUrl: string;
   imageAlt: string;
+  date?: string;
 }
 
 interface Props {
@@ -160,9 +161,25 @@ const leftReversed = [...leftPhotos].reverse();
       <span class="font-semibold text-center px-4">More photos →</span>
     </a>
   </div>
+
+  <!-- Hidden photo data for simple-mode lightbox -->
+  <div id="photo-gallery-all-photos" class="hidden" aria-hidden="true">
+    {recent.map((photo) => (
+      <span
+        class="gallery-photo-data"
+        data-image={photo.imageUrl}
+        data-alt={photo.imageAlt}
+        data-caption={photo.title}
+        data-date={photo.date ?? ""}
+      />
+    ))}
+  </div>
 </div>
 
+<script src="/assets/js/photo-gallery.js" is:inline defer></script>
+
 <script define:vars={{ scrollId, centerId }}>
+  // Scroll centering and wheel handler run immediately (no dependency on gallery JS)
   (function () {
     const scrollContainer = document.getElementById(scrollId);
     const centerPhoto = document.getElementById(centerId);
@@ -188,4 +205,30 @@ const leftReversed = [...leftPhotos].reverse();
       );
     }
   })();
+
+  // Gallery lightbox init must wait for deferred photo-gallery.js to load
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof window.photoGallery !== 'function') return;
+
+    var scrollContainer = document.getElementById(scrollId);
+    if (!scrollContainer) return;
+
+    var gallery = window.photoGallery();
+    gallery.init(); // No data element ID → simple mode
+
+    var links = scrollContainer.querySelectorAll('a[data-photo-url]');
+    links.forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        var img = link.querySelector('img');
+        if (!img) return;
+        var imgSrc = img.getAttribute('src');
+        var idx = gallery.photos.findIndex(function (p) { return p.image === imgSrc; });
+        if (idx >= 0) {
+          gallery.currentIndex = idx;
+          gallery.openPhotoSimple(gallery.photos[idx]);
+        }
+      });
+    });
+  });
 </script>
