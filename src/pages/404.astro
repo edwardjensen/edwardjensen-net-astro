@@ -1,0 +1,237 @@
+---
+/**
+ * Custom 404 page — /404.html
+ * Includes an inline search box so users can find what they were looking for.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Page Not Found" description="The page you're looking for doesn't exist.">
+  <main class="w-full" id="main-content" role="main">
+
+    <!-- Hero -->
+    <section class="max-w-4xl mx-auto px-4 lg:px-8 py-8 lg:py-12 text-center">
+      <p class="text-6xl lg:text-7xl mb-2" aria-hidden="true">🚫</p>
+      <h1 class="text-4xl lg:text-5xl font-bold text-heading mb-3">
+        Lost in the Void
+      </h1>
+      <p class="text-lg text-muted max-w-lg mx-auto">
+        The page you're looking for has wandered off into the digital void. It
+        might have been moved, renamed, or never existed in the first place.
+      </p>
+    </section>
+
+    <!-- Search -->
+    <section class="max-w-4xl mx-auto px-4 lg:px-8 py-6 lg:py-8">
+      <div class="bg-brand-smoke/70 dark:bg-brand-ink/70 backdrop-blur-sm rounded-2xl shadow-lg border border-brand-grey/20 p-8">
+        <h2 class="text-2xl font-bold text-heading mb-4 lowercase">Try searching the site?</h2>
+
+        <div class="relative mb-6">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="What are you looking for?"
+            aria-label="Search site content"
+            class="input-default w-full pl-4 pr-12 py-3 text-base"
+            autocomplete="off"
+          />
+          <svg class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-grey-dark dark:text-brand-grey-light pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <button
+            id="search-clear"
+            aria-label="Clear search"
+            style="display:none"
+            class="absolute right-12 top-1/2 -translate-y-1/2 text-brand-grey-dark dark:text-brand-grey-light hover:text-brand-chestnut transition-colors"
+          >
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="search-status" class="text-sm text-muted mb-2">Start typing to search through the site</div>
+        <div id="search-results" class="mt-4 hidden"></div>
+      </div>
+    </section>
+
+    <!-- Navigation cards -->
+    <section class="max-w-4xl mx-auto px-4 lg:px-8 py-6 lg:py-8">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-brand-smoke/70 dark:bg-brand-ink/70 backdrop-blur-sm rounded-2xl shadow-lg border border-brand-grey/20 p-5 hover:shadow-xl transition-shadow">
+          <div class="flex items-center gap-3 mb-3">
+            <svg class="w-6 h-6 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h3 class="text-xl font-bold text-heading">Writing</h3>
+          </div>
+          <p class="text-muted mb-3">Explore my essays, working notes, and thoughts</p>
+          <a href="/writing" class="btn-primary inline-block">Browse Writing</a>
+        </div>
+
+        <div class="bg-brand-smoke/70 dark:bg-brand-ink/70 backdrop-blur-sm rounded-2xl shadow-lg border border-brand-grey/20 p-5 hover:shadow-xl transition-shadow">
+          <div class="flex items-center gap-3 mb-3">
+            <svg class="w-6 h-6 text-brand-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-3m0 0l7-4 7 4M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9m-9 16l-7-4m0 0V5m7 4l7-4" />
+            </svg>
+            <h3 class="text-xl font-bold text-heading">Home</h3>
+          </div>
+          <p class="text-muted mb-3">Return to the homepage and start exploring</p>
+          <a href="/" class="btn-primary inline-block">Go Home</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer note -->
+    <section class="max-w-4xl mx-auto px-4 lg:px-8 py-6 lg:py-8 text-center">
+      <p class="text-muted mb-3">
+        If you think this is a mistake or need help finding something, feel free
+        to reach out. I'm happy to help!
+      </p>
+      <a href="/" class="link-accent font-semibold">Return to homepage</a>
+    </section>
+
+  </main>
+</BaseLayout>
+
+<!-- Lunr.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lunr.js/2.3.9/lunr.min.js" is:inline></script>
+<!-- Search handler shared with /search/ -->
+<script src="/assets/js/search.js" is:inline></script>
+
+<script>
+(function () {
+  const input = document.getElementById("search-input");
+  const clearBtn = document.getElementById("search-clear");
+  const statusEl = document.getElementById("search-status");
+  const resultsEl = document.getElementById("search-results");
+  if (!input || !clearBtn || !statusEl || !resultsEl) return;
+
+  let lunrIndex = null;
+  let dataMap = {};
+  let searchTimeout = null;
+  let ready = false;
+
+  fetch("/search-index.json")
+    .then((r) => r.json())
+    .then((searchData) => {
+      searchData.documents.forEach((doc) => { dataMap[doc.id] = doc; });
+      function buildIndex() {
+        if (typeof lunr === "undefined") { setTimeout(buildIndex, 50); return; }
+        lunrIndex = lunr(function () {
+          this.ref("id");
+          this.field("title", { boost: 10 });
+          this.field("excerpt", { boost: 5 });
+          this.field("content");
+          this.field("type");
+          searchData.documents.forEach((doc) => this.add(doc));
+        });
+        ready = true;
+        if (input.value.trim().length > 0) performSearch(input.value.trim());
+      }
+      buildIndex();
+    })
+    .catch(() => { statusEl.textContent = "Search index unavailable."; });
+
+  function decodeHtml(html) {
+    const txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+  }
+
+  function typeBadgeClass(type) {
+    if (type === "post") return "bg-brand-orange/20 text-brand-orange-dark";
+    if (type === "photography") return "bg-brand-chestnut/20 text-brand-chestnut";
+    return "bg-brand-grey/20 text-brand-grey-dark dark:text-brand-grey-light";
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  function renderResults(results, query) {
+    if (results.length === 0) {
+      resultsEl.innerHTML = `<div class="py-8 text-center">
+        <p class="text-muted mb-2">No results found for "${decodeHtml(query)}"</p>
+        <p class="text-sm text-muted">Try different keywords or browse the <a href="/writing/" class="link-accent">latest posts</a></p>
+      </div>`;
+    } else {
+      const items = results.map((r) => {
+        const doc = dataMap[r.ref];
+        if (!doc) return "";
+        const dateHtml = doc.date ? `<time class="text-xs text-muted">${formatDate(doc.date)}</time>` : "";
+        return `<article class="border-l-4 border-brand-orange pl-4 pb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="inline-block text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded ${typeBadgeClass(doc.type)}">${doc.type}</span>
+            ${dateHtml}
+          </div>
+          <h3 class="text-lg font-semibold mb-2">
+            <a href="${doc.url}" class="link-accent hover:underline">${decodeHtml(doc.title)}</a>
+          </h3>
+          <p class="text-body mb-3">${decodeHtml(doc.excerpt)}…</p>
+          <a href="${doc.url}" class="inline-flex items-center link-accent font-semibold text-sm">
+            <span>read more</span>
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        </article>`;
+      }).join("");
+      resultsEl.innerHTML = `<div class="text-sm text-muted mb-4">${results.length} result${results.length !== 1 ? "s" : ""} found</div>
+        <div class="space-y-6">${items}</div>`;
+    }
+    resultsEl.classList.remove("hidden");
+  }
+
+  function performSearch(query) {
+    if (!ready || !lunrIndex) { statusEl.textContent = "Loading search index..."; return; }
+    if (!query) {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+      statusEl.textContent = "Start typing to search through the site";
+      return;
+    }
+    statusEl.innerHTML = `<span class="flex items-center gap-1"><span class="inline-block w-2 h-2 bg-brand-orange rounded-full animate-pulse"></span> Searching…</span>`;
+    try {
+      const enhanced = query.split(" ").map((t) => t + "*").join(" ");
+      const results = lunrIndex.search(enhanced);
+      renderResults(results, query);
+    } catch {
+      try {
+        renderResults(lunrIndex.search(query), query);
+      } catch {
+        resultsEl.innerHTML = `<p class="text-muted">Search error. Please try again.</p>`;
+        resultsEl.classList.remove("hidden");
+      }
+    }
+    statusEl.textContent = "";
+  }
+
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    clearBtn.style.display = q.length > 0 ? "block" : "none";
+    clearTimeout(searchTimeout);
+    if (q.length === 0) {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+      statusEl.textContent = "Start typing to search through the site";
+      return;
+    }
+    searchTimeout = setTimeout(() => performSearch(q), 200);
+  });
+
+  clearBtn.addEventListener("click", () => {
+    input.value = "";
+    clearBtn.style.display = "none";
+    resultsEl.classList.add("hidden");
+    resultsEl.innerHTML = "";
+    statusEl.textContent = "Start typing to search through the site";
+    input.focus();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") clearBtn.click();
+  });
+})();
+</script>
