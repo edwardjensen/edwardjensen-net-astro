@@ -1,7 +1,7 @@
 {
   "name": "edwardjensen-net-astro",
   "type": "module",
-  "version": "14.0.0",
+  "version": "14.0.1",
   "engines": {
     "node": ">=24.14.0"
   },

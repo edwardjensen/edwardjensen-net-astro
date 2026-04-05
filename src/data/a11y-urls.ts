@@ -1,6 +1,5 @@
 // Accessibility test URLs
-// Carried over from Jekyll's _data/a11y-check-urls.yml
-// Paths not yet available will be added as page types are implemented in Phase 2+
-export const a11yUrls: string[] = [
-  "/",
-];
+// Edit src/data/a11y-urls.json to add or remove URLs.
+// This file re-exports that list so Astro components can import it with types.
+import urlList from "./a11y-urls.json";
+export const a11yUrls: string[] = urlList;

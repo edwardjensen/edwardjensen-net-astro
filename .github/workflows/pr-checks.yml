@@ -133,7 +133,7 @@ jobs:
 
       - name: Serve built site
         run: |
-          npx serve dist/ -l 8000 &
+          npx serve dist/client/ -l 8000 &
           # Poll until server is ready (up to 60 seconds)
           for i in $(seq 1 30); do
             curl -sf http://localhost:8000 > /dev/null && echo "Server ready" && break
