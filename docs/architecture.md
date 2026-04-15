@@ -8,14 +8,14 @@ Interactive features (navigation, photo gallery modal) are handled by Preact isl
 
 ## Content Fetching
 
-**Source:** Payload CMS REST API (accessed via Tailscale VPN in CI).
+**Source:** Cloudflare KV content relay at `contentrelay.edwardjensen.net` (public, key-authenticated).
 
 The API client lives in `src/lib/payload.ts`. Key aspects:
 
 - **Auto-pagination:** Each collection fetcher loops through all pages (PAGE_LIMIT = 100 per request) until all documents are retrieved.
 - **Build-time caching:** Module-level caches ensure each collection is fetched only once per build, even if multiple pages reference the same data.
 - **Permalink helpers:** Functions like `postPath()`, `workingNotePath()`, `photoPath()` generate URL paths from document slugs and dates.
-- **Environment config:** `CONTENT_RELAY_URL` env var points to the CMS base URL. Optional `REST_API_KEY` for authenticated reads.
+- **Environment config:** `CONTENT_RELAY_URL` env var points to the relay base URL. `CONTENT_RELAY_READ_KEY` is sent as the `X-Read-Key` header on all requests.
 
 ### Content Types
 

@@ -1,10 +1,6 @@
-name: Deploy Staging Site (Direct CMS)
+name: Deploy Staging Site
 
-# Simplified staging deployment: builds main branch from the production CMS
-# via Tailscale VPN and deploys to the Cloudflare staging worker.
-#
-# This is a temporary replacement for deploy-staging.yml while the content
-# relay architecture is being redesigned. See contexts/CONTENT_RELAY_BYPASS.md.
+# Builds main branch from the content relay and deploys to the Cloudflare staging worker.
 #
 # Deploys to the "staging" wrangler environment (edwardjensen-net-astro-staging),
 # a separate worker from production. Does not touch production traffic.
@@ -36,14 +32,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Connect to Tailscale VPN
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
-          tags: tag:ci
-          args: --accept-dns=true
-
       - name: Generate build info
         run: |
           BUILD_DATE=$(TZ=${{ vars.TIMEZONE }} date +'%-d %B %Y')
@@ -61,7 +49,8 @@ jobs:
 
       - name: Build site
         env:
-          CONTENT_RELAY_URL: ${{ secrets.PROD_CMS_REST_URL }}
+          CONTENT_RELAY_URL: ${{ secrets.CONTENT_RELAY_URL }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEY }}
         run: npm run build
 
       - name: Install Wrangler
