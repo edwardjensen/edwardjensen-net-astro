@@ -69,14 +69,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Connect to Tailscale VPN
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
-          tags: tag:ci
-          args: --accept-dns=true
-
       - name: Generate build info
         # Writes src/data/buildinfo.ts before the Astro build so components
         # can import version/commit information at build time.
@@ -96,7 +88,8 @@ jobs:
 
       - name: Build site
         env:
-          CONTENT_RELAY_URL: ${{ secrets.PROD_CMS_REST_URL }}
+          CONTENT_RELAY_URL: ${{ secrets.CONTENT_RELAY_URL }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
         run: npm run build
 
       - name: Upload build artifact

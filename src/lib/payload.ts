@@ -1,9 +1,9 @@
 /**
  * Payload CMS REST API client.
  *
- * Fetches all content at build time from the cache worker.
+ * Fetches all content at build time from the Cloudflare KV relay worker.
  * Base URL is set via CONTENT_RELAY_URL env var (no trailing slash, no /v2).
- * Optional auth via REST_API_KEY env var.
+ * Read access is authenticated via CONTENT_RELAY_READ_KEY env var (X-Read-Key header).
  *
  * Each exported function returns all documents (auto-paginates).
  * Results are cached in-memory for the duration of the build.
@@ -31,8 +31,14 @@ function getBaseUrl(): string {
   return url.replace(/\/$/, "") + "/v2";
 }
 
-function getApiKey(): string | undefined {
-  return import.meta.env.REST_API_KEY || undefined;
+function getReadKey(): string | undefined {
+  const key = import.meta.env.CONTENT_RELAY_READ_KEY;
+  if (!key) {
+    console.warn(
+      "[payload] CONTENT_RELAY_READ_KEY is not set — requests to the relay will be unauthenticated and may be rejected."
+    );
+  }
+  return key || undefined;
 }
 
 async function fetchPage<T>(
@@ -40,14 +46,14 @@ async function fetchPage<T>(
   page: number
 ): Promise<PayloadListResponse<T>> {
   const baseUrl = getBaseUrl();
-  const apiKey = getApiKey();
+  const readKey = getReadKey();
   const url = `${baseUrl}/${endpoint}?page=${page}&limit=${PAGE_LIMIT}`;
 
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
-  if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
+  if (readKey) {
+    headers["X-Read-Key"] = readKey;
   }
 
   const response = await fetch(url, { headers });

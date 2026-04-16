@@ -4,8 +4,7 @@ name: Deploy Staging Site
 # deployment target. Configuration is determined from the trigger type.
 #
 # TEMPORARILY DEACTIVATED (2026-04-04): Replaced by deploy-staging-direct.yml,
-# a simplified workflow that builds from the production CMS only.
-# See contexts/CONTENT_RELAY_BYPASS.md for full context.
+# a simplified workflow that builds using the content relay directly.
 # To re-enable: restore the commented-out triggers below and delete
 # deploy-staging-direct.yml.
 #
@@ -181,14 +180,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Connect to Tailscale VPN
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
-          tags: tag:ci
-          args: --accept-dns=true
-
       - name: Generate build info
         run: |
           VERSION="${{ steps.build-info.outputs.version }}"
@@ -206,12 +197,8 @@ jobs:
 
       - name: Build site
         env:
-          # Both CMS sources now fetch directly via Tailscale VPN (content relay bypassed).
-          # For production CMS: uses PROD_CMS_REST_URL (production CMS via VPN).
-          # For staging CMS: uses STAGING_CMS_REST_URL (staging CMS via VPN).
-          # Neither URL should include /v2 — it is appended by the fetch client.
-          CONTENT_RELAY_URL: ${{ needs.resolve-config.outputs.cms_source == 'staging' && vars.STAGING_CMS_REST_URL || vars.PROD_CMS_REST_URL }}
-          REST_API_KEY: ${{ needs.resolve-config.outputs.cms_source == 'staging' && secrets.STAGING_CMS_API_KEY || '' }}
+          CONTENT_RELAY_URL: ${{ secrets.CONTENT_RELAY_URL }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEY }}
         run: npm run build
 
       - name: Upload artifact

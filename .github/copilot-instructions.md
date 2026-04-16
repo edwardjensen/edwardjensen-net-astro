@@ -1,6 +1,6 @@
 # Copilot Instructions for edwardjensen-net-astro
 
-This is an Astro static site deployed to Cloudflare Workers. Content comes from Payload CMS via its REST API. Interactive components use Preact islands. Styling is Tailwind CSS 4.x with a custom brand design system.
+This is an Astro static site deployed to Cloudflare Workers. Content is fetched at build time from a Cloudflare KV content relay (`contentrelay.edwardjensen.net`), which is populated by Payload CMS on every publish. Interactive components use Preact islands. Styling is Tailwind CSS 4.x with a custom brand design system.
 
 **Any code changes must be reflected in this document and in `docs/` if they affect architecture, design system, or environment configuration.**
 
@@ -20,7 +20,7 @@ This applies to routing, content collections, integrations, configuration, and d
 - **Framework:** Astro 6.x (static site generation)
 - **Interactive components:** Preact via `@astrojs/preact`
 - **Styling:** Tailwind CSS 4.x with `@tailwindcss/typography`
-- **Content source:** Payload CMS REST API (fetched at build time)
+- **Content source:** Cloudflare KV content relay at `contentrelay.edwardjensen.net` (populated by Payload CMS on publish; fetched at build time via `CONTENT_RELAY_URL` + `CONTENT_RELAY_READ_KEY`)
 - **Deployment:** Cloudflare Workers (not Pages) via Wrangler v4
 - **CI/CD:** GitHub Actions — PR checks, staging on push to main, production on version tag
 - **Accessibility:** pa11y (WCAG 2.1 AA) enforced as a required PR gate
@@ -30,7 +30,7 @@ This applies to routing, content collections, integrations, configuration, and d
 
 | File | Purpose |
 |------|---------|
-| `src/lib/payload.ts` | Payload CMS REST API client (auto-pagination, build-time caching) |
+| `src/lib/payload.ts` | Content relay API client (auto-pagination, build-time caching, `X-Read-Key` auth) |
 | `src/types/payload.ts` | TypeScript interfaces for all CMS content types |
 | `src/styles/global.css` | Tailwind theme, brand color tokens, component CSS classes |
 | `src/layouts/BaseLayout.astro` | Root layout — HTML head, SEO, header nav, footer, photo modal |
@@ -42,7 +42,9 @@ This applies to routing, content collections, integrations, configuration, and d
 
 ## Content Architecture
 
-All content is fetched from Payload CMS REST API. The API client appends `/v2` to the base URL automatically.
+All content is fetched from the Cloudflare KV content relay. The API client in `src/lib/payload.ts` appends `/v2` to `CONTENT_RELAY_URL` automatically and authenticates with `X-Read-Key: <CONTENT_RELAY_READ_KEY>`.
+
+The relay is populated by Payload CMS via a push hook on every content publish. Astro builds read from the relay — no VPN or direct CMS access is required.
 
 **Collections:** `posts`, `working-notes`, `photography`, `historic-posts`, `pages`
 
@@ -89,7 +91,7 @@ The brand color palette, typography, and component classes are defined in `src/s
 
 **This is a public repository.** No credentials, API keys, or secrets may ever be committed.
 
-- Local development: `.env.local` (gitignored)
+- Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`
 - CI/CD: GitHub Actions secrets and environment secrets
 - Worker secrets: `wrangler secret put` (Cloudflare runtime bindings)
 

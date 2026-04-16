@@ -14,11 +14,11 @@
  *   node scripts/refresh-content-relay.js --collection posts
  *
  * Required environment variables:
- *   CMS_REST_URL          - Base URL of the Payload CMS REST API, no trailing slash
- *                           (e.g. https://www-ts.edwardjensencms.com/api/v2)
- *   CONTENT_RELAY_URL     - Base URL of the Cloudflare KV relay worker, no trailing slash
- *                           (e.g. https://contentrelay.edwardjensen.net)
- *   CONTENT_RELAY_API_KEY - API key for write operations on the relay worker
+ *   CMS_REST_URL            - Base URL of the Payload CMS REST API, no trailing slash
+ *                             (e.g. https://edwardjensencms.com/api/v2 via Tailscale)
+ *   CONTENT_RELAY_URL       - Base URL of the Cloudflare KV relay worker, no trailing slash
+ *                             (e.g. https://contentrelay.edwardjensen.net)
+ *   CONTENT_RELAY_WRITE_KEY - Write API key for the relay worker (set via wrangler secret)
  */
 
 const PAGE_LIMIT = 100;
@@ -35,12 +35,12 @@ const ALL_COLLECTIONS = [
 function getConfig() {
   const cmsRestUrl = process.env.CMS_REST_URL?.replace(/\/$/, '');
   const relayUrl = process.env.CONTENT_RELAY_URL?.replace(/\/$/, '');
-  const relayApiKey = process.env.CONTENT_RELAY_API_KEY;
+  const relayApiKey = process.env.CONTENT_RELAY_WRITE_KEY;
 
   const missing = [];
   if (!cmsRestUrl) missing.push('CMS_REST_URL');
   if (!relayUrl) missing.push('CONTENT_RELAY_URL');
-  if (!relayApiKey) missing.push('CONTENT_RELAY_API_KEY');
+  if (!relayApiKey) missing.push('CONTENT_RELAY_WRITE_KEY');
 
   if (missing.length > 0) {
     console.error(`✗ Missing required environment variables: ${missing.join(', ')}`);
