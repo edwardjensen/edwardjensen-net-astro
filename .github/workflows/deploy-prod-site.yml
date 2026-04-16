@@ -110,7 +110,7 @@ jobs:
       - name: Build site
         env:
           CONTENT_RELAY_URL: ${{ secrets.CONTENT_RELAY_URL }}
-          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEY }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
         run: npm run build
 
       - name: Upload build artifact
