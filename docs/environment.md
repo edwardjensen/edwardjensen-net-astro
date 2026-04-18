@@ -19,7 +19,7 @@ npm run dev
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `CONTENT_RELAY_URL` | Yes | Base URL of the Cloudflare KV content relay (no trailing slash, no `/v2` — appended automatically). Production: `https://contentrelay.edwardjensen.net` |
-| `CONTENT_RELAY_READ_KEY` | Yes | Read API key for the relay (`X-Read-Key` header). Required for all relay reads. |
+| `CONTENT_RELAY_READ_KEYS` | Yes | Read API key for the relay (`X-Read-Key` header). Required for all relay reads. The value may be a single key or comma-separated list (same format as the Cloudflare Worker secret). |
 
 ## CI/CD Pipelines
 
@@ -75,7 +75,7 @@ _(No repository-level secrets currently required for builds — all build secret
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 | `CF_DEPLOYMENT_WORKER` | Production Cloudflare Worker name |
 | `CONTENT_RELAY_URL` | Content relay base URL (`https://contentrelay.edwardjensen.net`) |
-| `CONTENT_RELAY_READ_KEY` | Read key for the content relay |
+| `CONTENT_RELAY_READ_KEYS` | Read key for the content relay |
 
 ### Environment: Staging
 
@@ -85,7 +85,7 @@ _(No repository-level secrets currently required for builds — all build secret
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 | `CF_STAGING_WORKER` | Staging Cloudflare Worker name |
 | `CONTENT_RELAY_URL` | Content relay base URL (same relay as production) |
-| `CONTENT_RELAY_READ_KEY` | Read key for the content relay |
+| `CONTENT_RELAY_READ_KEYS` | Read key for the content relay |
 
 ## Cloudflare Worker Secrets
 
