@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # npm — root package.json
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+    groups:
+      all-npm:
+        patterns:
+          - "*"
+        applies-to: version-updates
+
+  # GitHub Actions — .github/workflows/
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+        applies-to: version-updates
