@@ -114,7 +114,7 @@ jobs:
         run: npm run build
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: prod-site
           path: dist/
@@ -133,7 +133,7 @@ jobs:
           ref: main
 
       - name: Download build artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: prod-site
           path: dist/
