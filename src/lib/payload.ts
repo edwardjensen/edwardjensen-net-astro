@@ -20,6 +20,12 @@ import type {
 
 const PAGE_LIMIT = 100;
 
+// Retry configuration for relay fetches.
+// The wait-for-relay gate in republish-prod.yml handles the primary KV consistency window,
+// but retries here provide a defense-in-depth backstop for transient errors.
+const MAX_FETCH_RETRIES = 5;
+const FETCH_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000];
+
 function getBaseUrl(): string {
   const url = import.meta.env.CONTENT_RELAY_URL;
   if (!url) {
@@ -56,15 +62,37 @@ async function fetchPage<T>(
     headers["X-Read-Key"] = readKey;
   }
 
-  const response = await fetch(url, { headers });
+  let lastError: unknown;
 
-  if (!response.ok) {
-    throw new Error(
-      `Payload CMS REST API request failed: ${response.status} ${response.statusText} (${url})`
-    );
+  for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++) {
+    try {
+      const response = await fetch(url, { headers });
+
+      if (response.ok) {
+        return response.json() as Promise<PayloadListResponse<T>>;
+      }
+
+      lastError = new Error(
+        `Payload CMS REST API request failed: ${response.status} ${response.statusText} (${url})`
+      );
+      console.warn(
+        `[payload] Fetch attempt ${attempt}/${MAX_FETCH_RETRIES} failed: ${response.status} ${response.statusText} (${url})`
+      );
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `[payload] Fetch attempt ${attempt}/${MAX_FETCH_RETRIES} network error for ${url}: ${err}`
+      );
+    }
+
+    if (attempt < MAX_FETCH_RETRIES) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, FETCH_RETRY_DELAYS_MS[attempt - 1])
+      );
+    }
   }
 
-  return response.json() as Promise<PayloadListResponse<T>>;
+  throw lastError;
 }
 
 async function fetchAll<T>(endpoint: string): Promise<T[]> {

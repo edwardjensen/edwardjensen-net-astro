@@ -144,6 +144,57 @@ jobs:
       build_version: ${{ steps.build-info.outputs.version }}
 
     steps:
+      - name: Wait for relay KV propagation
+        # On repository_dispatch, the CMS sends client_payload with the published doc's
+        # updatedAt and collection. Cloudflare KV is eventually consistent (up to ~60s
+        # globally), so we poll the relay's meta endpoint until it reflects the new
+        # content before we start the build. This prevents deploying a site built from
+        # stale relay data.
+        #
+        # Skipped on push and workflow_dispatch (no client_payload).
+        if: github.event_name == 'repository_dispatch'
+        env:
+          CONTENT_RELAY_URL: ${{ secrets.CONTENT_RELAY_URL }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
+        run: |
+          COLLECTION="${{ github.event.client_payload.collection }}"
+          UPDATED_AT="${{ github.event.client_payload.updatedAt }}"
+
+          if [[ -z "$COLLECTION" || -z "$UPDATED_AT" ]]; then
+            echo "No collection/updatedAt in client_payload — skipping relay wait."
+            exit 0
+          fi
+
+          TARGET_TS=$(date -d "$UPDATED_AT" +%s)
+          echo "Waiting for relay '${COLLECTION}' meta.updatedAt >= ${UPDATED_AT} (target: ${TARGET_TS})..."
+
+          MAX_WAIT=120
+          INTERVAL=5
+          ELAPSED=0
+
+          while [[ $ELAPSED -lt $MAX_WAIT ]]; do
+            RELAY_UPDATED_AT=$(curl -sf \
+              -H "X-Read-Key: ${CONTENT_RELAY_READ_KEY}" \
+              "${CONTENT_RELAY_URL}/v2/meta/${COLLECTION}" \
+              | jq -r '.updatedAt // empty' 2>/dev/null || true)
+
+            if [[ -n "$RELAY_UPDATED_AT" ]]; then
+              RELAY_TS=$(date -d "$RELAY_UPDATED_AT" +%s)
+              if [[ $RELAY_TS -ge $TARGET_TS ]]; then
+                echo "Relay is ready (updatedAt=${RELAY_UPDATED_AT}). Proceeding with build."
+                exit 0
+              fi
+              echo "[${ELAPSED}s] Relay not ready yet (relay=${RELAY_UPDATED_AT} < target=${UPDATED_AT}). Retrying in ${INTERVAL}s..."
+            else
+              echo "[${ELAPSED}s] No relay meta yet. Retrying in ${INTERVAL}s..."
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "::warning::Relay wait timed out after ${MAX_WAIT}s — proceeding with build anyway."
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
