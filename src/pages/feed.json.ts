@@ -6,10 +6,13 @@
 import type { APIRoute } from "astro";
 import { getPosts, postPath } from "../lib/payload";
 import { footerText } from "../data/footer-text";
-
-const SITE_URL = "https://www.edwardjensen.net";
-const AUTHOR = "Edward Jensen";
-const FEED_LIMIT = 10;
+import {
+  SITE_URL,
+  SITE_TITLE,
+  SITE_AUTHOR,
+  SITE_DESCRIPTION,
+  FEED_LIMIT_POSTS,
+} from "../config";
 
 export const GET: APIRoute = async () => {
   const posts = await getPosts();
@@ -17,7 +20,7 @@ export const GET: APIRoute = async () => {
   const sorted = [...posts]
     .filter((p) => p._status === "published")
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, FEED_LIMIT);
+    .slice(0, FEED_LIMIT_POSTS);
 
   const items = sorted.map((post) => {
     const url = `${SITE_URL}${postPath(post.slug, post.date)}`;
@@ -46,15 +49,14 @@ export const GET: APIRoute = async () => {
 
   const feed = {
     version: "https://jsonfeed.org/version/1.1",
-    title: "Edward Jensen",
-    description:
-      "Edward Jensen is a nonprofit technology professional who writes about the intersection of technology and mission-driven impact work.",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     home_page_url: `${SITE_URL}/`,
     feed_url: `${SITE_URL}/feed.json`,
     favicon: `${SITE_URL}/favicon.ico`,
     expired: false,
     language: "en-US",
-    authors: [{ name: AUTHOR, url: SITE_URL }],
+    authors: [{ name: SITE_AUTHOR, url: SITE_URL }],
     items,
   };
 

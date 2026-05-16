@@ -6,10 +6,13 @@
 import type { APIRoute } from "astro";
 import { getWorkingNotes, workingNotePath } from "../../lib/payload";
 import { footerText } from "../../data/footer-text";
-
-const SITE_URL = "https://www.edwardjensen.net";
-const AUTHOR = "Edward Jensen";
-const FEED_LIMIT = 20;
+import {
+  SITE_URL,
+  SITE_TITLE,
+  SITE_AUTHOR,
+  SITE_DESCRIPTION,
+  FEED_LIMIT_NOTES,
+} from "../../config";
 
 export const GET: APIRoute = async () => {
   const notes = await getWorkingNotes();
@@ -18,7 +21,7 @@ export const GET: APIRoute = async () => {
   const sorted = [...notes]
     .filter((n) => n._status === "published" && new Date(n.date) <= now)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, FEED_LIMIT);
+    .slice(0, FEED_LIMIT_NOTES);
 
   const items = sorted.map((note) => {
     const url = `${SITE_URL}${workingNotePath(note.slug, note.date)}`;
@@ -40,15 +43,14 @@ export const GET: APIRoute = async () => {
 
   const feed = {
     version: "https://jsonfeed.org/version/1.1",
-    title: "Edward Jensen - Working Notes",
-    description:
-      "Edward Jensen is a nonprofit technology professional who writes about the intersection of technology and mission-driven impact work. - Microblog entries and quick thoughts",
+    title: `${SITE_TITLE} - Working Notes`,
+    description: `${SITE_DESCRIPTION} - Microblog entries and quick thoughts`,
     home_page_url: `${SITE_URL}/notes/`,
     feed_url: `${SITE_URL}/feeds/notes.json`,
     favicon: `${SITE_URL}/favicon.ico`,
     expired: false,
     language: "en-US",
-    authors: [{ name: AUTHOR, url: SITE_URL }],
+    authors: [{ name: SITE_AUTHOR, url: SITE_URL }],
     items,
   };
 
