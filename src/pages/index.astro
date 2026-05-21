@@ -6,6 +6,7 @@ import RecentPosts from "../components/sections/RecentPosts.astro";
 import PhotoStrip from "../components/sections/PhotoStrip.astro";
 import { getPosts, getPhotography, postPath, photoPath } from "../lib/payload";
 import { googleMaps } from "../data/google-maps";
+import { copy } from "../data/copy";
 import type { PostItem } from "../components/ItemList.astro";
 
 const posts = await getPosts();
@@ -93,18 +94,13 @@ const homeGalleryData = {
 
 <LandingPage
   title="Edward Jensen"
-  description="Insights from inside the work of nonprofit IT: strategy, leadership, and institutional resilience—along with photography, reflections on urban life, and civic participation."
+  description={copy.home.metaDescription}
   image="/assets/images/bluebackground.png"
 >
   <!-- Intro prose (order 0, renders first) -->
   <Fragment>
-    <h1>Edward Jensen explores the intersection of nonprofit technology and mission-driven impact.</h1>
-    <p>
-      On these pages, I share insights from inside the work of nonprofit IT: strategy, leadership,
-      and institutional resilience—along with photography, reflections on urban life, civic
-      participation, and whatever else crosses my path as someone deeply invested in mission-driven
-      work.
-    </p>
+    <h1>{copy.home.heading}</h1>
+    <p>{copy.home.intro}</p>
   </Fragment>
 
   <!-- Sections slot — rendered in order: CTA (10), Writing (20), Photos (30) -->
