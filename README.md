@@ -109,6 +109,21 @@ Four supporting workers run alongside the main site:
 | Maps proxy | `ejnetmaps.edwardjensenprojects.com` | Google Maps Static API proxy (keeps API key server-side) |
 | Stream proxy | `stpcamera.edwardjensenprojects.com` | Cloudflare Stream embed proxy |
 
+## Maintenance
+
+### Dependency updates
+
+[Dependabot](https://github.com/edwardjensen/edwardjensen-net-astro/security/dependabot) runs weekly (Sundays) and opens grouped PRs for npm and GitHub Actions updates. Minor and patch updates can generally be merged directly. For major version bumps (e.g., Astro, Tailwind), review the upstream changelog before merging.
+
+### Manually managed version pins
+
+Two version pins are **not** managed by Dependabot and must be updated manually:
+
+| Pin | Location | How to update |
+|-----|----------|---------------|
+| **Node.js runtime** | `.node_version` file and `NODE_VERSION` GitHub Actions variable | Update `.node_version` to the new LTS version string (e.g., `24`), then update the `NODE_VERSION` variable in GitHub repository settings. |
+| **Cloudflare compatibility date** | `wrangler.jsonc` → `"compatibility_date"` | Update to a recent date (e.g., today's date) when adopting new Workers runtime APIs. See [Cloudflare compatibility dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/). |
+
 ## Documentation
 
 See [`docs/`](docs/) for architecture details, design system reference, and environment configuration.

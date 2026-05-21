@@ -5,16 +5,17 @@
  * Include inside a <head> element.
  */
 
-const SITE_TITLE = "Edward Jensen";
-const SITE_URL = "https://www.edwardjensen.net";
-const LOGO_URL = `${SITE_URL}/assets/images/bluebackground.png`;
-const AUTHOR_NAME = "Edward Jensen";
+import {
+  SITE_TITLE,
+  SITE_URL,
+  SITE_DESCRIPTION,
+  LOGO_URL,
+  SITE_AUTHOR,
+  AUTHOR_SAMEAS,
+} from "../config";
+
+const AUTHOR_NAME = SITE_AUTHOR;
 const AUTHOR_URL = SITE_URL;
-const AUTHOR_SAMEAS = [
-  "https://www.linkedin.com/in/edwardjensen",
-  "https://bsky.app/profile/edwardjensen.net",
-  "https://www.github.com/edwardjensen",
-];
 
 interface Props {
   /** Page title, without site name suffix. */
@@ -37,7 +38,7 @@ interface Props {
 
 const {
   title,
-  description = "Edward Jensen is a nonprofit technology professional who writes about the intersection of technology and mission-driven impact work.",
+  description = SITE_DESCRIPTION,
   canonical = new URL(Astro.url.pathname, Astro.site).toString(),
   image = LOGO_URL,
   imageAlt,

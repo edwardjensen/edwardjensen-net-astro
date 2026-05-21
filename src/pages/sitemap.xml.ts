@@ -19,16 +19,12 @@ import {
   historicPostPath,
 } from "../lib/payload";
 import { featuredTags } from "../data/featured-tags";
-
-const SITE_URL = "https://www.edwardjensen.net";
+import { SITE_URL } from "../config";
+import { toW3CDate } from "../lib/feed-utils";
 
 interface SitemapEntry {
   url: string;
   lastmod: string;
-}
-
-function toW3CDate(dateStr: string): string {
-  return new Date(dateStr).toISOString().slice(0, 10);
 }
 
 export const GET: APIRoute = async () => {

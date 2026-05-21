@@ -5,26 +5,17 @@
 
 import type { APIRoute } from "astro";
 import { getPosts, postPath } from "../../lib/payload";
+import { escapeXml, toRfc822, rssHeader, rssFooter } from "../../lib/feed-utils";
+import {
+  SITE_URL,
+  SITE_TITLE,
+  SITE_AUTHOR,
+  SITE_DESCRIPTION,
+  FEED_LIMIT_POSTS,
+} from "../../config";
 
-const SITE_URL = "https://www.edwardjensen.net";
-const AUTHOR = "Edward Jensen";
-const TITLE = "Edward Jensen - essays";
-const DESCRIPTION =
-  "Edward Jensen is a nonprofit technology professional who writes about the intersection of technology and mission-driven impact work. - Posts in category: essays";
-const FEED_LIMIT = 10;
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function toRfc822(dateStr: string): string {
-  return new Date(dateStr).toUTCString();
-}
+const TITLE = `${SITE_TITLE} - essays`;
+const DESCRIPTION = `${SITE_DESCRIPTION} - Posts in category: essays`;
 
 export const GET: APIRoute = async () => {
   const posts = await getPosts();
@@ -36,7 +27,7 @@ export const GET: APIRoute = async () => {
         p.categories?.map((c) => c.toLowerCase()).includes("essays")
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, FEED_LIMIT);
+    .slice(0, FEED_LIMIT_POSTS);
 
   const items = sorted
     .map((post) => {
@@ -48,25 +39,20 @@ export const GET: APIRoute = async () => {
       <link>${escapeXml(url)}</link>
       <guid isPermaLink="true">${escapeXml(url)}</guid>
       <pubDate>${toRfc822(post.date)}</pubDate>
-      <author>${escapeXml(AUTHOR)}</author>
+      <author>${escapeXml(SITE_AUTHOR)}</author>
       <description>${contentHtml}</description>
     </item>`;
     })
     .join("");
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<?xml-stylesheet type="text/xsl" href="/assets/css/feed-style.xsl"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
-  <channel>
-    <title>${escapeXml(TITLE)}</title>
-    <link>${SITE_URL}/writing/</link>
-    <description>${escapeXml(DESCRIPTION)}</description>
-    <language>en-US</language>
-    <atom:link href="${SITE_URL}/feeds/essays.xml" rel="self" type="application/rss+xml"/>
-    <lastBuildDate>${toRfc822(new Date().toISOString())}</lastBuildDate>
+  const xml = `${rssHeader({
+    title: TITLE,
+    description: DESCRIPTION,
+    linkUrl: `${SITE_URL}/writing/`,
+    feedUrl: `${SITE_URL}/feeds/essays.xml`,
+  })}
     ${items}
-  </channel>
-</rss>`;
+  ${rssFooter()}`;
 
   return new Response(xml.trim(), {
     headers: { "Content-Type": "application/rss+xml; charset=utf-8" },
