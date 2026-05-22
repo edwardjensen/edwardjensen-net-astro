@@ -25,7 +25,7 @@
     "pa11y": "^9.1.1",
     "preact": "^10.29.1",
     "tailwindcss": "^4.3.0",
-    "wrangler": "^4.93.0"
+    "wrangler": "^4.94.0"
   },
   "overrides": {
     "vite": "^7"
