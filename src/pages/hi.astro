@@ -11,6 +11,7 @@ import RecentPosts from "../components/sections/RecentPosts.astro";
 import PhotoStrip from "../components/sections/PhotoStrip.astro";
 import { getPosts, getPhotography, postPath, photoPath } from "../lib/payload";
 import type { PostItem } from "../components/ItemList.astro";
+import { copy } from "../data/copy";
 
 const posts = await getPosts();
 const photos = await getPhotography();
@@ -39,33 +40,28 @@ const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
 ---
 
 <LandingPage
-  title="Let's Connect — Edward Jensen"
-  description="My work focuses on harnessing technology and data to amplify mission impact for nonprofit organizations."
+  title={copy.hi.metaTitle}
+  description={copy.hi.metaDescription}
   image="/assets/images/bluebackground.png"
 >
   <!-- Intro prose -->
   <Fragment>
-    <h1>It's nice to meet you! I'm Edward Jensen.</h1>
+    <h1>{copy.hi.heading}</h1>
     <p>
-      My work focuses on harnessing technology and data to amplify mission impact for nonprofit
-      organizations. I am the Director of Information Technology for{" "}
-      <a href="https://www.meda.net/">MEDA, the Metropolitan Economic Development Association</a>, in
-      Minneapolis.
+      {copy.hi.introPrefix}{" "}
+      <a href="https://www.meda.net/">MEDA, the Metropolitan Economic Development Association</a>,{" "}
+      {copy.hi.introSuffix}
     </p>
-    <p>
-      On these pages, I share insights from inside the work. As a nonprofit IT leader, I focus on
-      technology strategy, institutional resilience, knowledge enterprise development: the tactical
-      realities of advancing IT within mission-driven organizations.
-    </p>
+    <p>{copy.hi.intro2}</p>
   </Fragment>
 
   <Fragment slot="sections">
     <!-- Order 20: Featured posts -->
     <div class="max-w-7xl mx-auto px-4 lg:px-8">
       <SectionCard
-        section="Here's some of what I write about."
+        section={copy.hi.writingSection}
         icon="pen"
-        subheader="These essays represent my approach to nonprofit technology strategy and the challenges I often encounter in my work."
+        subheader={copy.hi.writingSubheader}
       >
         {postItems.length > 0 ? (
           <RecentPosts posts={postItems} limit={3} showExcerpt />
@@ -73,7 +69,7 @@ const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
           <RecentPosts posts={[]} limit={3} />
         )}
         <div class="mt-6 text-center">
-          <a href="/writing/" class="btn-secondary">Explore the full archive here.</a>
+          <a href="/writing/" class="btn-secondary">{copy.hi.ctaLink}</a>
         </div>
       </SectionCard>
     </div>
@@ -83,7 +79,7 @@ const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
       class="flex flex-col items-center justify-center text-center max-w-7xl mx-auto px-4 lg:px-8 py-6 mb-8"
       aria-label="Call to Action"
     >
-      <h2 class="text-3xl mb-6 font-header font-bold text-heading">Let's stay connected!</h2>
+      <h2 class="text-3xl mb-6 font-header font-bold text-heading">{copy.hi.ctaHeading}</h2>
       <div class="text-xl">
         <CallToAction />
       </div>
