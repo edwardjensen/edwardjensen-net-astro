@@ -73,7 +73,7 @@ jobs:
           echo "::warning::Relay wait timed out after ${MAX_WAIT}s — proceeding with build anyway."
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
