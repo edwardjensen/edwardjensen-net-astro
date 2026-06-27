@@ -26,3 +26,4 @@ cloudflare-workers/hi-redirector/hi-redirects.json
 # Contexts (planning docs)
 contexts
 .claude
+logs

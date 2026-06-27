@@ -70,7 +70,8 @@ jobs:
             ELAPSED=$((ELAPSED + INTERVAL))
           done
 
-          echo "::warning::Relay wait timed out after ${MAX_WAIT}s — proceeding with build anyway."
+          echo "::error::Relay wait timed out after ${MAX_WAIT}s — aborting build to prevent deploying stale content."
+          exit 1
 
       - name: Checkout repository
         uses: actions/checkout@v6
