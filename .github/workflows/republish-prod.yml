@@ -73,7 +73,7 @@ jobs:
           echo "::warning::Relay wait timed out after ${MAX_WAIT}s — proceeding with build anyway."
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
@@ -92,7 +92,7 @@ jobs:
           echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ vars.NODE_VERSION }}
           cache: npm
