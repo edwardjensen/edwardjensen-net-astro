@@ -46,6 +46,12 @@ All content is fetched from the Cloudflare KV content relay. The API client in `
 
 The relay is populated by Payload CMS via a push hook on every content publish. Astro builds read from the relay — no VPN or direct CMS access is required.
 
+**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, `republish-prod.yml` polls `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
+
+If that does not happen within 180s the step **fails the build** rather than proceeding. Building from unverified relay data is how stale content reached production before; the CMS already refuses to dispatch at all when its relay push fails, and this keeps that guarantee on this side. Re-run the workflow once the relay is healthy.
+
+A dispatch with no `relayVersion`, or a relay worker that reports no `version`, degrades to the older `meta.updatedAt` comparison with a warning. `workflow_dispatch` runs skip the gate entirely — a manual republish is an explicit human decision.
+
 **Collections:** `posts`, `working-notes`, `photography`, `historic-posts`, `pages`
 
 **URL patterns (must be preserved):**
