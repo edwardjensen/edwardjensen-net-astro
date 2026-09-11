@@ -176,13 +176,17 @@ jobs:
           CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
         run: npm run build
 
-      - name: Install Wrangler
-        run: npm install -g wrangler@4
-
       - name: Deploy to Cloudflare Workers
         # Uses the adapter-generated dist/server/wrangler.json which has the correct
         # entry point (dist/server/entry.mjs) and asset paths (dist/client/).
+        #
+        # `npx wrangler`, NOT a globally installed wrangler@4. That generated config
+        # is written by @cloudflare/vite-plugin, which pins its own wrangler — and it
+        # emits `legacy_env`, a field newer wrangler releases reject outright. A
+        # floating global install drifts away from the plugin and breaks the deploy
+        # (wrangler 4.131.1 did exactly that). Using the lockfile's wrangler keeps the
+        # two versions moving together under Dependabot.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: wrangler deploy --config dist/server/wrangler.json --name ${{ secrets.CF_DEPLOYMENT_WORKER }}
+        run: npx wrangler deploy --config dist/server/wrangler.json --name ${{ secrets.CF_DEPLOYMENT_WORKER }}
