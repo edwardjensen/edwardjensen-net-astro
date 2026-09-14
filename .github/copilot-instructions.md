@@ -120,3 +120,5 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag
 - Target is Cloudflare Workers with static assets (not Pages)
 - The Astro Cloudflare adapter generates `dist/server/wrangler.json` — CI deploys using that config
+
+**`@astrojs/cloudflare` and `wrangler` are version-coupled — do not bump either without verifying first.** `@astrojs/cloudflare` bundles `@cloudflare/vite-plugin`, whose version controls Astro's build-mode auto-detection (`"server"` vs `"static"`) and whether the generated Wrangler config includes `legacy_env` — the deploy-time `wrangler` binary must be new enough to accept that field or the deploy fails. A routine minor bump of `@astrojs/cloudflare` broke both staging and production this way in September 2026 (see README.md's "Manually managed version pins" section and PR #38/#39). Before merging a Dependabot bump to either package, run a full local build and `wrangler deploy --dry-run` using `npm install` (not `npm ci`, which can mask a real peer-dependency conflict).

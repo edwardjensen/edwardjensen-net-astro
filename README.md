@@ -33,7 +33,6 @@ src/
 public/
   assets/         # Client-side JS (photo gallery, search) and feed stylesheet
 cloudflare-workers/
-  content-relay/  # KV cache relay for CMS content
   hi-redirector/  # Short URL redirect service (hi.edwardjensen.net)
   maps-proxy/     # Google Maps Static API proxy
   stream-proxy/   # Cloudflare Stream embed proxy
@@ -100,14 +99,15 @@ All secrets (Cloudflare API tokens, CMS URLs, Tailscale credentials) are managed
 
 ## Cloudflare Workers
 
-Four supporting workers run alongside the main site:
+Three supporting workers live in this repo (`cloudflare-workers/`) and run alongside the main site:
 
 | Worker | Domain | Purpose |
 |--------|--------|---------|
-| Content relay | `contentrelay.edwardjensen.net` | KV cache relay for CMS API responses |
 | Hi redirector | `hi.edwardjensen.net` | Short URL redirect service |
 | Maps proxy | `ejnetmaps.edwardjensenprojects.com` | Google Maps Static API proxy (keeps API key server-side) |
 | Stream proxy | `stpcamera.edwardjensenprojects.com` | Cloudflare Stream embed proxy |
+
+The site also depends on a fourth worker, the **content relay** (`contentrelay.edwardjensen.net`) — the KV cache this site reads content from at build time. Its source lives in the `edwardjensencms-payload` repo (`cloudflare-workers/content-relay/`), not here, since it's deployed and owned alongside the CMS.
 
 ## Maintenance
 
@@ -123,6 +123,12 @@ Two version pins are **not** managed by Dependabot and must be updated manually:
 |-----|----------|---------------|
 | **Node.js runtime** | `.node_version` file and `NODE_VERSION` GitHub Actions variable | Update `.node_version` to the new LTS version string (e.g., `24`), then update the `NODE_VERSION` variable in GitHub repository settings. |
 | **Cloudflare compatibility date** | `wrangler.jsonc` → `"compatibility_date"` | Update to a recent date (e.g., today's date) when adopting new Workers runtime APIs. See [Cloudflare compatibility dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/). |
+
+### `@astrojs/cloudflare` and `wrangler` — review before merging
+
+These two **are** proposed by Dependabot like any other dependency, but their versions are tightly coupled and a routine bump has broken both staging and production before (September 2026, PR #38/#39): `@astrojs/cloudflare` bundles `@cloudflare/vite-plugin`, whose version controls both Astro's build-mode auto-detection (`"server"` vs `"static"`) and whether the generated Wrangler config includes the `legacy_env` field — which the deploy-time `wrangler` binary must also be new enough to accept, or the deploy fails outright (PR #36).
+
+**Before merging a Dependabot bump to either package:** run a full local build and `wrangler deploy --dry-run` first, using the exact command CI runs (`npm install`, not `npm ci` — `npm ci` trusts the existing lockfile and can mask a real peer-dependency conflict that only `npm install`'s strict resolution catches).
 
 ## Documentation
 
