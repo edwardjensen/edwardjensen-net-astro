@@ -19,7 +19,7 @@ npm run dev
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `CONTENT_RELAY_URL` | Yes | Base URL of the Cloudflare KV content relay (no trailing slash, no `/v2` — appended automatically). Production: `https://contentrelay.edwardjensen.net` |
-| `CONTENT_RELAY_READ_KEYS` | Yes | Read API key for the relay (`X-Read-Key` header). Required for all relay reads. The value may be a single key or comma-separated list (same format as the Cloudflare Worker secret). |
+| `CONTENT_RELAY_READ_KEY` | Yes | Read API key for the relay (`X-Read-Key` header). Required for all relay reads. Note the singular name — the Worker's own secret (`CONTENT_RELAY_READ_KEYS`, see below) supports a comma-separated list for rotation, but CI maps it to this singular env var for the build. |
 
 ## CI/CD Pipelines
 
@@ -47,9 +47,9 @@ Triggers on version tag push (`v*.*.*`) or manual dispatch:
 3. **Deploy** — upload to production Cloudflare Worker
 4. **Release** — create GitHub Release
 
-### CMS Republish (`republish-prod.yml`)
+### CMS Republish (`republish-prod.yml`, `republish-staging.yml`)
 
-Triggers via manual dispatch or CMS webhook. Checks out the latest production tag, rebuilds with fresh content from the relay, and redeploys.
+Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). `republish-prod.yml` checks out the latest production tag and redeploys to production; `republish-staging.yml` builds `main` directly (no tag checkout) and redeploys to staging. Both poll the content relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate described in `.github/copilot-instructions.md`.
 
 ### Worker Deployments
 
@@ -89,15 +89,20 @@ _(No repository-level secrets currently required for builds — all build secret
 
 ## Cloudflare Worker Secrets
 
-Set via `wrangler secret put <NAME>` (not committed to the repo):
+Workers whose source lives in this repo (`cloudflare-workers/`) have their secrets set via `wrangler secret put <NAME>` from here (not committed to the repo):
+
+| Worker | Secret | Description |
+|--------|--------|-------------|
+| maps-proxy | `GOOGLE_MAPS_API_KEY` | Google Maps Static API key |
+| stream-proxy | `CLOUDFLARE_STREAM_CUSTOMER_ID` | Stream customer identifier |
+| stream-proxy | `CLOUDFLARE_STREAM_VIDEO_ID` | Stream video identifier |
+
+The **content-relay** worker's secrets are set the same way, but from the `edwardjensencms-payload` repo, since that's where its source lives:
 
 | Worker | Secret | Description |
 |--------|--------|-------------|
 | content-relay | `CONTENT_RELAY_WRITE_KEY` | Write key used by Payload to push content updates |
 | content-relay | `CONTENT_RELAY_READ_KEYS` | Comma-separated read keys (supports rotation) |
-| maps-proxy | `GOOGLE_MAPS_API_KEY` | Google Maps Static API key |
-| stream-proxy | `CLOUDFLARE_STREAM_CUSTOMER_ID` | Stream customer identifier |
-| stream-proxy | `CLOUDFLARE_STREAM_VIDEO_ID` | Stream video identifier |
 
 ## CI-Generated Files
 

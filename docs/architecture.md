@@ -66,12 +66,13 @@ Vanilla JavaScript handles:
 
 ## Supporting Workers
 
-Four Cloudflare Workers run alongside the main site, each in `cloudflare-workers/`:
+Three Cloudflare Workers live in this repo, each in `cloudflare-workers/`, and run alongside the main site:
 
-- **content-relay** — KV-backed cache for CMS REST API responses. Provides public read access to content from a CMS on a private network.
 - **hi-redirector** — Short URL redirect service. Fetches redirect mappings from a CMS globals endpoint.
 - **maps-proxy** — Proxies Google Maps Static API requests, keeping the API key server-side.
 - **stream-proxy** — Proxies Cloudflare Stream embeds.
+
+A fourth worker, **content-relay**, is what this site actually reads content from (see [Content Fetching](#content-fetching) above) — but its source lives in the `edwardjensencms-payload` repo, not here, since it's deployed and owned alongside the CMS that populates it.
 
 ## Build Pipeline
 
