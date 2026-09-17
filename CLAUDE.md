@@ -212,6 +212,11 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - Color contrast compliance with the brand palette
 - pa11y checks must pass in CI — a PR that fails accessibility checks must not merge
 - Test URLs are defined in `src/data/a11y-urls.json` (`src/data/a11y-urls.ts` re-exports them for Astro components)
+- The "Accessibility Checks" CI job runs `npx puppeteer browsers install chrome` explicitly
+  before pa11y, rather than relying on puppeteer's own `npm install` postinstall step to fetch
+  Chrome. On the GitHub-hosted runner that postinstall silently no-ops — `npm ci` exits 0 with
+  no error, but `~/.cache/puppeteer` never gets a Chrome binary, so pa11y fails later with
+  "Could not find Chrome." Do not remove this step as redundant with the postinstall.
 
 ## Deployment
 
