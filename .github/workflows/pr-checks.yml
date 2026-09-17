@@ -123,27 +123,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
         run: npm ci
-
-      - name: Install Chrome for Puppeteer
-        run: |
-          set +e
-          for attempt in 1 2 3; do
-            echo "Chrome install attempt $attempt/3..."
-            rm -rf ~/.cache/puppeteer/chrome
-            node_modules/.bin/puppeteer browsers install chrome --format "{{browser}}@{{buildId}} {{path}}"
-            CHROME_BIN=$(find ~/.cache/puppeteer/chrome -type f -iname "chrome" 2>/dev/null | head -1)
-            if [ -n "$CHROME_BIN" ] && [ -x "$CHROME_BIN" ]; then
-              echo "Chrome executable confirmed at $CHROME_BIN"
-              exit 0
-            fi
-            echo "Attempt $attempt produced no working Chrome executable (likely a truncated download); retrying..."
-          done
-          echo "::error::Chrome executable still missing after 3 install attempts"
-          find ~/.cache/puppeteer -maxdepth 5 2>&1 || echo "directory does not exist"
-          exit 1
 
       - name: Download build artifact
         uses: actions/download-artifact@v6

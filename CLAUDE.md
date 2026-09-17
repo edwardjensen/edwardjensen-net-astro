@@ -212,17 +212,16 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - Color contrast compliance with the brand palette
 - pa11y checks must pass in CI — a PR that fails accessibility checks must not merge
 - Test URLs are defined in `src/data/a11y-urls.json` (`src/data/a11y-urls.ts` re-exports them for Astro components)
-- The "Accessibility Checks" CI job sets `PUPPETEER_SKIP_DOWNLOAD: true` on `npm ci` and installs
-  Chrome in its own step (`node_modules/.bin/puppeteer browsers install chrome`) instead, wrapped
-  in a retry loop (3 attempts, wiping `~/.cache/puppeteer/chrome` between each). This exists
-  because the GitHub-hosted runner's download of the Chrome zip is intermittently truncated: the
-  install command exits 0, the zip and most of its contents (license files, manifests,
-  `WidevineCdm/`) extract successfully, but the `chrome` binary itself — one of the largest
-  entries — is silently missing from the result. Confirmed by direct inspection of a failing
-  run's `~/.cache/puppeteer` contents; not a config or a postinstall-skipped issue. Each retry
-  attempt verifies the binary actually exists before declaring success, and the whole step fails
-  loudly only after 3 attempts, rather than deferring an opaque "Could not find Chrome" failure
-  to pa11y. Don't replace the retry loop with a single install call.
+- `pa11y` is pinned to `^10.0.0` (pulls in `puppeteer ^25.9.0`) specifically because of a Node
+  26 incompatibility: `@puppeteer/browsers`' zip extraction (via `extract-zip`/`yauzl`) silently
+  truncates large files — including the `chrome` binary itself — when run on Node 26, while
+  exiting 0 and reporting success (confirmed upstream:
+  https://github.com/puppeteer/puppeteer/issues/15244, duplicate of
+  https://github.com/puppeteer/puppeteer/issues/14957). Puppeteer 24.x and pa11y 9.x hit this on
+  every CI run once the runner moved to Node 26, deterministically — not a flaky network issue,
+  despite how it first presented ("Could not find Chrome"). Puppeteer 25 fixed the extraction
+  path; that's the actual fix, not a version-pin nicety. Do not downgrade `pa11y` below `10.0.0`
+  or `puppeteer` below `25.x` while this repo runs on Node 26.
 
 ## Deployment
 
