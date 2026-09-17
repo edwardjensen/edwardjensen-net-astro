@@ -15,6 +15,54 @@ as the code, not a trailing cleanup pass.
 becomes obsolete, delete it rather than marking it deprecated — but if it encoded a decision
 that still constrains future work, move that reasoning into this file first.
 
+## This Repository Is Public
+
+**`edwardjensen-net-astro` is a public GitHub repository. Everything pushed here is world
+-readable, permanently and immediately.** Treat that as a constraint on all output, not just on
+code.
+
+That applies to **every artifact**, not only source files:
+
+- Source code and configuration
+- This file, `README.md`, and everything in `docs/`
+- Commit messages and branch names
+- **Pull request titles and descriptions**
+- Issue text and code comments
+
+### The cross-repo hazard
+
+The CMS that feeds this site, **`edwardjensencms-payload`, is a private repository**. These two
+are developed together and their documentation is frequently updated in the same sitting, which
+makes copying detail from there to here an easy and consequential mistake.
+
+Detail that is perfectly fine in the private CMS repo must **not** be carried into this one:
+
+| Don't bring over | Examples |
+|------------------|----------|
+| Internal hostnames | CMS admin/staging hostnames, the staging relay host, anything Tailscale-only |
+| Infrastructure topology | Homelab server details, SSH targets, deployment paths, container names |
+| Database and storage identifiers | Postgres database names, role names, R2 bucket names |
+| Operational runbook specifics | Backup/restore procedures, migration playbooks, incident steps |
+
+When writing docs here, describe **this site's** behaviour and its contract with the relay.
+Reference the CMS by its role ("the CMS pushes to the relay on publish"), not by its internal
+addresses or operational detail. If a reader would need private-repo access to act on a
+sentence, that sentence belongs in the private repo instead.
+
+### What is already public and fine to name
+
+The site's own domains, the production relay hostname (`contentrelay.edwardjensen.net`), and
+the supporting worker domains in `cloudflare-workers/` are all published in this repo already —
+they're reachable on the open internet and naming them adds nothing. The read key is the
+secret, not the URL.
+
+### Secrets
+
+No credentials, API keys, tokens, or secrets may ever be committed — see "Environment &
+Secrets" below. A secret pushed to a public repo is compromised the moment it lands and must be
+rotated, not merely reverted: the value stays in the git history and in anything that has
+already mirrored it.
+
 ## Working Practice: Branch and PR, Never `main`
 
 **Any coding agent working in this repository must do its work on a separate git branch and
@@ -144,7 +192,8 @@ The brand color palette, typography, and component classes are defined in `src/s
 
 ## Environment & Secrets
 
-**This is a public repository.** No credentials, API keys, or secrets may ever be committed.
+**This is a public repository** (see "This Repository Is Public" above). No credentials, API
+keys, or secrets may ever be committed.
 
 - Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`
 - CI/CD: GitHub Actions secrets and environment secrets
