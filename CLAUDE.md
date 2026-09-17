@@ -212,14 +212,17 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - Color contrast compliance with the brand palette
 - pa11y checks must pass in CI — a PR that fails accessibility checks must not merge
 - Test URLs are defined in `src/data/a11y-urls.json` (`src/data/a11y-urls.ts` re-exports them for Astro components)
-- The "Accessibility Checks" CI job sets `PUPPETEER_SKIP_DOWNLOAD: true` on `npm ci` and runs
-  `npx puppeteer browsers install chrome` as its own explicit step, rather than relying on
-  puppeteer's own `npm install` postinstall to fetch Chrome. On the GitHub-hosted runner that
-  postinstall download completes *partially* — it creates the target folder but not the
-  executable inside it — without failing `npm ci`, and the corrupt-but-present folder then
-  makes a later `puppeteer browsers install` treat Chrome as already installed and skip it too.
-  Skipping the implicit download entirely and doing exactly one explicit install avoids that
-  partial-download state. Do not remove either half as redundant.
+- The "Accessibility Checks" CI job sets `PUPPETEER_SKIP_DOWNLOAD: true` on `npm ci` and installs
+  Chrome in its own step (`node_modules/.bin/puppeteer browsers install chrome`) instead, wrapped
+  in a retry loop (3 attempts, wiping `~/.cache/puppeteer/chrome` between each). This exists
+  because the GitHub-hosted runner's download of the Chrome zip is intermittently truncated: the
+  install command exits 0, the zip and most of its contents (license files, manifests,
+  `WidevineCdm/`) extract successfully, but the `chrome` binary itself — one of the largest
+  entries — is silently missing from the result. Confirmed by direct inspection of a failing
+  run's `~/.cache/puppeteer` contents; not a config or a postinstall-skipped issue. Each retry
+  attempt verifies the binary actually exists before declaring success, and the whole step fails
+  loudly only after 3 attempts, rather than deferring an opaque "Could not find Chrome" failure
+  to pa11y. Don't replace the retry loop with a single install call.
 
 ## Deployment
 
