@@ -1,8 +1,42 @@
-# Copilot Instructions for edwardjensen-net-astro
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this
+repository. **It is the single source of truth for how this site works.** There is no parallel
+`.github/copilot-instructions.md` — that file was renamed to this one, so there is exactly one
+place to update and nothing to keep in sync.
 
 This is an Astro static site deployed to Cloudflare Workers. Content is fetched at build time from a Cloudflare KV content relay (`contentrelay.edwardjensen.net`), which is populated by Payload CMS on every publish. Interactive components use Preact islands. Styling is Tailwind CSS 4.x with a custom brand design system.
 
-**Any code changes must be reflected in this document and in `docs/` if they affect architecture, design system, or environment configuration.**
+**Any code change must be reflected in this file, and in `docs/` if it affects architecture,
+the design system, or environment configuration.** Documentation belongs in the *same* change
+as the code, not a trailing cleanup pass.
+
+`docs/` is a current snapshot of the system, not an archive of past decisions. When something
+becomes obsolete, delete it rather than marking it deprecated — but if it encoded a decision
+that still constrains future work, move that reasoning into this file first.
+
+## Working Practice: Branch and PR, Never `main`
+
+**Any coding agent working in this repository must do its work on a separate git branch and
+land it on `main` through a pull request. Never commit directly to `main`.**
+
+This is not a style preference — `main` is a deployment trigger. A push to `main` builds and
+deploys the site to the **staging** Cloudflare Worker automatically
+(`deploy-staging-direct.yml`). Committing straight to `main` therefore ships, and skips the PR
+checks — the build validation and the pa11y accessibility gate, which is a required merge gate
+precisely so inaccessible markup can't reach the site.
+
+**The expected flow:**
+
+1. Branch from `main` — `feature/X`, `fix/X`, `chore/X`, or `docs/X`.
+2. Commit the work there, including documentation updates in the *same* change (this file and
+   `docs/`, per the rule at the top).
+3. Open a PR to `main` and let the checks run.
+4. Merge the PR. That deploys to staging.
+5. Promote to production separately by tagging `vX.Y.Z` — see "Deployment".
+
+If you find yourself already on `main` with uncommitted work, create the branch first and
+commit there. If a task genuinely seems to require committing to `main`, stop and ask.
 
 ## Critical: Use Current Documentation
 
@@ -25,13 +59,18 @@ This applies to routing, content collections, integrations, configuration, and d
 - **CI/CD:** GitHub Actions — PR checks, staging on push to main, production on version tag
 - **Accessibility:** pa11y (WCAG 2.1 AA) enforced as a required PR gate
 - **Node.js:** Latest LTS (24.x)
+- **Package manager:** **npm** (`package-lock.json`; CI runs `npm install`). The CMS repo uses
+  pnpm — don't carry the habit across repos.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `src/lib/payload.ts` | Content relay API client (auto-pagination, build-time caching, `X-Read-Key` auth) |
+| `src/lib/payload.ts` | Content relay API client — auto-pagination (100/request), 5 retries with exponential backoff, build-time caching, `X-Read-Key` auth, permalink helpers |
+| `src/lib/feed-utils.ts` | Shared helpers for the RSS/JSON feed endpoints |
+| `src/config.ts` | Site-wide constants: canonical URL, title, author, feed limits, page sizes, search debounce |
 | `src/types/payload.ts` | TypeScript interfaces for all CMS content types |
+| `src/pages/search-index.json.ts` | Build-time JSON search index consumed by the Lunr search |
 | `src/styles/global.css` | Tailwind theme, brand color tokens, component CSS classes |
 | `src/layouts/BaseLayout.astro` | Root layout — HTML head, SEO, header nav, footer, photo modal |
 | `src/data/navbar.ts` | Navigation structure |
@@ -46,13 +85,18 @@ All content is fetched from the Cloudflare KV content relay. The API client in `
 
 The relay is populated by Payload CMS via a push hook on every content publish. Astro builds read from the relay — no VPN or direct CMS access is required.
 
-**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, `republish-prod.yml` polls `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
+**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, **both** `republish-prod.yml` and `republish-staging.yml` poll `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
 
 If that does not happen within 180s the step **fails the build** rather than proceeding. Building from unverified relay data is how stale content reached production before; the CMS already refuses to dispatch at all when its relay push fails, and this keeps that guarantee on this side. Re-run the workflow once the relay is healthy.
 
 A dispatch with no `relayVersion`, or a relay worker that reports no `version`, degrades to the older `meta.updatedAt` comparison with a warning. `workflow_dispatch` runs skip the gate entirely — a manual republish is an explicit human decision.
 
 **Collections:** `posts`, `working-notes`, `photography`, `historic-posts`, `pages`
+
+The relay only ever holds **published** documents — the CMS filters on `_status: 'published'`
+on every push, so drafts are structurally incapable of reaching a build. Each collection's
+fetcher is exported from `src/lib/payload.ts` as `getPosts()`, `getWorkingNotes()`,
+`getPhotography()`, `getHistoricPosts()`, `getPages()`.
 
 **URL patterns (must be preserved):**
 - Blog posts: `/posts/YYYY/YYYY-MM/slug`
@@ -86,7 +130,12 @@ The brand color palette, typography, and component classes are defined in `src/s
 - Use Preact islands (`src/islands/`) for components needing client-side state
 - Use `client:load` for immediately-needed interactivity (e.g., navigation)
 - Use `client:visible` for below-the-fold interactive components
-- Vanilla JS in `public/assets/js/` is acceptable for DOM-heavy features (photo gallery, search)
+- Vanilla JS in `public/assets/js/` is acceptable for DOM-heavy features — currently just
+  `photo-gallery.js`
+- Search is the exception: its logic is written inline in `src/pages/search/index.astro` and
+  `src/pages/404.astro`, with Lunr loaded from cdnjs via an `is:inline` script. The two copies
+  are near-duplicates — change both, or factor them out first. Lunr is the only external
+  runtime dependency on the site; everything else is self-hosted.
 
 ### Styling
 - Use Tailwind utility classes as the default
