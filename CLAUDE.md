@@ -106,7 +106,9 @@ This applies to routing, content collections, integrations, configuration, and d
 - **Deployment:** Cloudflare Workers (not Pages) via Wrangler v4
 - **CI/CD:** GitHub Actions — PR checks, staging on push to main, production on version tag
 - **Accessibility:** pa11y (WCAG 2.1 AA) enforced as a required PR gate
-- **Node.js:** Latest LTS (24.x)
+- **Node.js:** 26.x (Active LTS from 2026-10-28). Local work is pinned by `.node-version`
+  (read by `fnm` on `cd`); CI reads the `NODE_VERSION` GitHub repository variable. A
+  `pr-checks.yml` step asserts the two majors agree on every PR.
 - **Package manager:** **npm** (`package-lock.json`; CI runs `npm install`). The CMS repo uses
   pnpm — don't carry the habit across repos.
 
@@ -210,6 +212,16 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - Color contrast compliance with the brand palette
 - pa11y checks must pass in CI — a PR that fails accessibility checks must not merge
 - Test URLs are defined in `src/data/a11y-urls.json` (`src/data/a11y-urls.ts` re-exports them for Astro components)
+- `pa11y` is pinned to `^10.0.0` (pulls in `puppeteer ^25.9.0`) specifically because of a Node
+  26 incompatibility: `@puppeteer/browsers`' zip extraction (via `extract-zip`/`yauzl`) silently
+  truncates large files — including the `chrome` binary itself — when run on Node 26, while
+  exiting 0 and reporting success (confirmed upstream:
+  https://github.com/puppeteer/puppeteer/issues/15244, duplicate of
+  https://github.com/puppeteer/puppeteer/issues/14957). Puppeteer 24.x and pa11y 9.x hit this on
+  every CI run once the runner moved to Node 26, deterministically — not a flaky network issue,
+  despite how it first presented ("Could not find Chrome"). Puppeteer 25 fixed the extraction
+  path; that's the actual fix, not a version-pin nicety. Do not downgrade `pa11y` below `10.0.0`
+  or `puppeteer` below `25.x` while this repo runs on Node 26.
 
 ## Deployment
 

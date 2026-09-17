@@ -60,6 +60,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Check Node version pins agree
+        run: |
+          FILE_MAJOR="$(cut -d. -f1 < .node-version | tr -d '[:space:]')"
+          VAR_MAJOR="$(echo "${{ vars.NODE_VERSION }}" | cut -d. -f1)"
+          echo ".node-version major=$FILE_MAJOR  NODE_VERSION major=$VAR_MAJOR"
+          test "$FILE_MAJOR" = "$VAR_MAJOR"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
