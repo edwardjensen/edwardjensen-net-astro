@@ -49,7 +49,7 @@ Triggers on version tag push (`v*.*.*`) or manual dispatch:
 
 ### CMS Republish (`republish-prod.yml`, `republish-staging.yml`)
 
-Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). `republish-prod.yml` checks out the latest production tag and redeploys to production; `republish-staging.yml` builds `main` directly (no tag checkout) and redeploys to staging. Both poll the content relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate described in `.github/copilot-instructions.md`.
+Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). `republish-prod.yml` checks out the latest production tag and redeploys to production; `republish-staging.yml` builds `main` directly (no tag checkout) and redeploys to staging. Both poll the content relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate described in `CLAUDE.md`.
 
 ### Worker Deployments
 

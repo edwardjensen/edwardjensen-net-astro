@@ -69,7 +69,21 @@ Custom Tailwind component classes are defined in `src/styles/global.css` within 
 - `.embedded-working-note` — Container for inline note embeds
 - `.embedded-working-note__header` / `__title` / `__content` / `__footer` / `__link` — BEM children
 
+### Accessibility & Utility
+- `.skip-link` — Skip-to-content link, visible on focus
+- `.sr-only` — Screen-reader-only text
+- `.highlight` — Search-result term highlighting
+- `.scrollbar-hide` — Hides scrollbars on horizontally scrolling containers (e.g. the photo strip)
+- `.prose` — Tailwind Typography overrides applied to CMS-rendered `contentHtml`
+
+Note that `.card` and `.section-card` are defined by a single shared rule — changing one
+changes both.
+
 ## Accessibility
+
+Enhanced focus styles are defined on `a:focus` and friends in the base layer, using
+`brand-chestnut` so focus is visible in both modes. The `contrast-less:` variant is used
+throughout the component classes to soften colors for users who prefer reduced contrast.
 
 The color palette was designed with specific WCAG contrast ratios:
 
