@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- **Node.js** 24.x LTS
+- **Node.js** 26.x (Active LTS from 2026-10-28)
 
 ### Setup
 
@@ -61,7 +61,7 @@ Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload 
 
 | Variable | Description |
 |----------|-------------|
-| `NODE_VERSION` | Node.js version for CI (e.g., `24.14.1`) |
+| `NODE_VERSION` | Node.js version for CI (e.g., `26.9.0`) |
 
 ### Repository Secrets
 

@@ -106,7 +106,9 @@ This applies to routing, content collections, integrations, configuration, and d
 - **Deployment:** Cloudflare Workers (not Pages) via Wrangler v4
 - **CI/CD:** GitHub Actions — PR checks, staging on push to main, production on version tag
 - **Accessibility:** pa11y (WCAG 2.1 AA) enforced as a required PR gate
-- **Node.js:** Latest LTS (24.x)
+- **Node.js:** 26.x (Active LTS from 2026-10-28). Local work is pinned by `.node-version`
+  (read by `fnm` on `cd`); CI reads the `NODE_VERSION` GitHub repository variable. A
+  `pr-checks.yml` step asserts the two majors agree on every PR.
 - **Package manager:** **npm** (`package-lock.json`; CI runs `npm install`). The CMS repo uses
   pnpm — don't carry the habit across repos.
 

@@ -16,7 +16,7 @@ This repository is public. It demonstrates how Payload CMS integrates with an As
 | CI/CD | GitHub Actions |
 | Fonts | [Fontsource](https://fontsource.org) — Fraunces (headers), Source Sans 3 (body) |
 | Accessibility | [pa11y](https://pa11y.org) (WCAG 2.1 AA enforcement in CI) |
-| Node.js | Latest LTS (24.x) |
+| Node.js | 26.x (Active LTS from 2026-10-28) |
 
 ## Project Structure
 
@@ -73,7 +73,7 @@ this site** — locally or in CI.
 
 ## Local Development
 
-**Prerequisites:** Node.js 24.x LTS. No VPN required — builds read from the public,
+**Prerequisites:** Node.js 26.x (Active LTS from 2026-10-28). No VPN required — builds read from the public,
 key-authenticated content relay, not from the CMS.
 
 ```sh
@@ -151,7 +151,7 @@ Two version pins are **not** managed by Dependabot and must be updated manually:
 
 | Pin | Location | How to update |
 |-----|----------|---------------|
-| **Node.js runtime** | `.node_version` file and `NODE_VERSION` GitHub Actions variable | Update `.node_version` to the new LTS version string (e.g., `24`), then update the `NODE_VERSION` variable in GitHub repository settings. |
+| **Node.js runtime** | `.node-version` file and `NODE_VERSION` GitHub Actions variable | Update `.node-version` to the new version string (e.g., `26`), then update the `NODE_VERSION` variable in GitHub repository settings. A PR-checks step fails if the two disagree. |
 | **Cloudflare compatibility date** | `wrangler.jsonc` → `"compatibility_date"` | Update to a recent date (e.g., today's date) when adopting new Workers runtime APIs. See [Cloudflare compatibility dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/). |
 
 ### `@astrojs/cloudflare` and `wrangler` — review before merging
