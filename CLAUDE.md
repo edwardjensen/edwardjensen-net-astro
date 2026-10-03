@@ -69,8 +69,8 @@ already mirrored it.
 land it on `main` through a pull request. Never commit directly to `main`.**
 
 This is not a style preference — `main` is a deployment trigger. A push to `main` builds and
-deploys the site to the **staging** Cloudflare Worker automatically
-(`deploy-staging-direct.yml`). Committing straight to `main` therefore ships, and skips the PR
+deploys the site to the **staging** environment automatically
+(`deploy-staging.yml`: by default the staging server, see "Deployment"). Committing straight to `main` therefore ships, and skips the PR
 checks — the build validation and the pa11y accessibility gate, which is a required merge gate
 precisely so inaccessible markup can't reach the site.
 
@@ -137,7 +137,7 @@ All content is fetched from the Cloudflare KV content relay. The API client in `
 
 The relay is populated by Payload CMS via a push hook on every content publish. Astro builds read from the relay — no VPN or direct CMS access is required.
 
-**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, **both** `republish-prod.yml` and `republish-staging.yml` poll `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
+**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, `republish-prod.yml` — and `deploy-staging.yml` for `staging-relay` dispatches — run `.github/scripts/wait-for-relay.sh` (one shared copy, kept outside the built code so it exists whichever tag is checked out), which polls `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
 
 If that does not happen within 180s the step **fails the build** rather than proceeding. Building from unverified relay data is how stale content reached production before; the CMS already refuses to dispatch at all when its relay push fails, and this keeps that guarantee on this side. Re-run the workflow once the relay is healthy.
 
@@ -250,7 +250,18 @@ See `docs/environment.md` for the full list of required secrets and variables.
 
 ## Deployment
 
-- **Staging:** automatic on push to `main`
+- **Staging:** one workflow, `deploy-staging.yml`, for every staging operation. Each run has three
+  independent choices — **site code** (`main` | `latest-tag`), **content source** (`production` =
+  production relay | `staging-relay` = staging relay, the path production uses, so relay changes get
+  tested | `staging-direct` = the staging CMS itself over Tailscale; no relay, so no event pages) and
+  **deploy target** (`local-server` | `cloudflare`). Defaults by trigger (the `Resolve configuration`
+  step is the single place to change them): push to `main` → main + production + local-server;
+  `staging_cms_publish` dispatch → latest-tag + staging-relay + local-server;
+  `staging_cms_photo_publish` dispatch → main + staging-relay + local-server; a manual run starts at
+  main + production + local-server, with all three selectable.
+- **Staging server deploys** are an atomic release swap over Tailscale SSH (no SSH key): rsync into
+  `releases/<timestamp>-<sha>/` (hard-linked against `current`), switch the `current` symlink, keep the
+  newest 3 releases for rollback. The web server serves `current` and is never restarted.
 - **Production:** push a version tag (`vX.Y.Z`)
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag
 - Target is Cloudflare Workers with static assets (not Pages)

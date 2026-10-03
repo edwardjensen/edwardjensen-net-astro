@@ -116,7 +116,7 @@ Payload CMS  ──push on publish──▶  Cloudflare KV content relay
 PR → build + a11y checks (required gate)
   │
   ▼
-main → staging worker (automatic)
+main → staging (automatic; server or Cloudflare worker, selectable)
   │
   ▼
 vX.Y.Z tag → production worker (www.edwardjensen.net)
