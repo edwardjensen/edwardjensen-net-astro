@@ -19,6 +19,8 @@ npm run dev
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `CONTENT_RELAY_URL` | Yes | Base URL of the Cloudflare KV content relay (no trailing slash, no `/v2` — appended automatically). Production: `https://contentrelay.edwardjensen.net` |
+| `PUBLIC_INTAKE_SUBMIT_URL` | No | Where the event intake forms on `/hi/{tag}/` post: the intake service's submit URL (https; `http://localhost` is allowed for local development). Public, since it ends up in the built pages. Use the service's own platform address rather than a hostname behind a Cloudflare challenge, because a `fetch()` cannot answer one. Unset, the event pages build without forms |
+| `PUBLIC_HCAPTCHA_SITEKEY` | No | The hCaptcha sitekey for those forms (public by nature). The hCaptcha site must list the hostname of every page that shows a form. hCaptcha's published test sitekey works for local development. Unset, the event pages build without forms |
 | `CONTENT_RELAY_READ_KEY` | Yes | Read API key for the relay (`X-Read-Key` header). Required for all relay reads. Note the singular name — the Worker's own secret (`CONTENT_RELAY_READ_KEYS`, see below) supports a comma-separated list for rotation, but CI maps it to this singular env var for the build. |
 
 ## CI/CD Pipelines
@@ -63,6 +65,8 @@ Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload 
 |----------|-------------|
 | `NODE_VERSION` | Node.js version for CI (e.g., `26.9.0`) |
 
+`INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY` (listed under each environment below) are set per environment, because the PR checks run in the `production` environment and staging builds use the `staging` one. They are optional: a build without them is fine, it just has no event forms. Both values are public once built (they are in the page's HTML, and in the build artifact), but they are kept as secrets so they stay out of this public repository's settings and are masked in workflow logs. The workflows read `secrets.NAME || vars.NAME`, so a variable of the same name also works; a secret wins.
+
 ### Repository Secrets
 
 _(No repository-level secrets currently required for builds — all build secrets are in environments.)_
@@ -71,6 +75,8 @@ _(No repository-level secrets currently required for builds — all build secret
 
 | Secret | Description |
 |--------|-------------|
+| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL` (see above). Optional |
+| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token for Worker deployment |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 | `CF_DEPLOYMENT_WORKER` | Production Cloudflare Worker name |
@@ -81,6 +87,8 @@ _(No repository-level secrets currently required for builds — all build secret
 
 | Secret | Description |
 |--------|-------------|
+| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional |
+| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 | `CF_STAGING_WORKER` | Staging Cloudflare Worker name |

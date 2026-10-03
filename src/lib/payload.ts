@@ -6,6 +6,7 @@
  * Read access is authenticated via CONTENT_RELAY_READ_KEY env var (X-Read-Key header).
  *
  * Each exported function returns all documents (auto-paginates).
+ * A missing optional collection (see getHiEvents) yields an empty list instead of an error.
  * Results are cached in-memory for the duration of the build.
  */
 
@@ -15,6 +16,7 @@ import type {
   PayloadPhoto,
   PayloadHistoricPost,
   PayloadPage,
+  PayloadHiEvent,
   PayloadListResponse,
 } from "../types/payload.ts";
 
@@ -25,6 +27,14 @@ const PAGE_LIMIT = 100;
 // but retries here provide a defense-in-depth backstop for transient errors.
 const MAX_FETCH_RETRIES = 5;
 const FETCH_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000];
+
+/** The relay answered 404 for a collection that was fetched as optional. */
+export class RelayNotFoundError extends Error {
+  constructor(endpoint: string) {
+    super(`The content relay has no '${endpoint}' collection`);
+    this.name = "RelayNotFoundError";
+  }
+}
 
 function getBaseUrl(): string {
   const url = import.meta.env.CONTENT_RELAY_URL;
@@ -49,7 +59,8 @@ function getReadKey(): string | undefined {
 
 async function fetchPage<T>(
   endpoint: string,
-  page: number
+  page: number,
+  optional = false
 ): Promise<PayloadListResponse<T>> {
   const baseUrl = getBaseUrl();
   const readKey = getReadKey();
@@ -72,6 +83,12 @@ async function fetchPage<T>(
         return response.json() as Promise<PayloadListResponse<T>>;
       }
 
+      // An optional collection that has not been pushed yet is not a transient error:
+      // retrying for half a minute would only delay the same answer.
+      if (optional && response.status === 404) {
+        throw new RelayNotFoundError(endpoint);
+      }
+
       lastError = new Error(
         `Payload CMS REST API request failed: ${response.status} ${response.statusText} (${url})`
       );
@@ -79,6 +96,7 @@ async function fetchPage<T>(
         `[payload] Fetch attempt ${attempt}/${MAX_FETCH_RETRIES} failed: ${response.status} ${response.statusText} (${url})`
       );
     } catch (err) {
+      if (err instanceof RelayNotFoundError) throw err;
       lastError = err;
       console.warn(
         `[payload] Fetch attempt ${attempt}/${MAX_FETCH_RETRIES} network error for ${url}: ${err}`
@@ -95,12 +113,12 @@ async function fetchPage<T>(
   throw lastError;
 }
 
-async function fetchAll<T>(endpoint: string): Promise<T[]> {
+async function fetchAll<T>(endpoint: string, optional = false): Promise<T[]> {
   const allDocs: T[] = [];
   let page = 1;
 
   do {
-    const result = await fetchPage<T>(endpoint, page);
+    const result = await fetchPage<T>(endpoint, page, optional);
     allDocs.push(...result.docs);
     if (!result.hasNextPage) break;
     page++;
@@ -113,11 +131,20 @@ async function fetchAll<T>(endpoint: string): Promise<T[]> {
 // Keyed by collection name.
 const _cache = new Map<string, unknown[]>();
 
-async function getCollection<T>(endpoint: string): Promise<T[]> {
+async function getCollection<T>(endpoint: string, optional = false): Promise<T[]> {
   if (_cache.has(endpoint)) {
     return _cache.get(endpoint) as T[];
   }
-  const docs = await fetchAll<T>(endpoint);
+  let docs: T[];
+  try {
+    docs = await fetchAll<T>(endpoint, optional);
+  } catch (err) {
+    if (!(err instanceof RelayNotFoundError)) throw err;
+    console.warn(
+      `[payload] ${err.message}; building without it. It appears once the CMS pushes it.`
+    );
+    docs = [];
+  }
   _cache.set(endpoint, docs);
   return docs;
 }
@@ -149,6 +176,16 @@ export async function getHistoricPosts(): Promise<PayloadHistoricPost[]> {
 /** Fetch all published CMS pages (/about, /about/uses, etc.). */
 export async function getPages(): Promise<PayloadPage[]> {
   return getCollection<PayloadPage>("pages");
+}
+
+/**
+ * Fetch the events that have their own /hi/{tag}/ page. Unlike the collections above this
+ * one is optional: the relay has no `hi-events` key until the CMS has pushed it once (it
+ * does so whenever the redirector settings are saved), and a build before then should
+ * produce a site with no event pages rather than fail.
+ */
+export async function getHiEvents(): Promise<PayloadHiEvent[]> {
+  return getCollection<PayloadHiEvent>("hi-events", true);
 }
 
 // ---------------------------------------------------------------------------
