@@ -65,7 +65,7 @@ Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload 
 |----------|-------------|
 | `NODE_VERSION` | Node.js version for CI (e.g., `26.9.0`) |
 
-The two intake variables below are *environment* variables (set per environment, like the secrets), because the PR checks run in the `production` environment and staging builds use the `staging` one. They are optional: a build without them is fine, it just has no event forms.
+`INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY` (listed under each environment below) are set per environment, because the PR checks run in the `production` environment and staging builds use the `staging` one. They are optional: a build without them is fine, it just has no event forms. Both values are public once built (they are in the page's HTML, and in the build artifact), but they are kept as secrets so they stay out of this public repository's settings and are masked in workflow logs. The workflows read `secrets.NAME || vars.NAME`, so a variable of the same name also works; a secret wins.
 
 ### Repository Secrets
 
@@ -73,13 +73,10 @@ _(No repository-level secrets currently required for builds — all build secret
 
 ### Environment: Production
 
-| Variable | Description |
-|----------|-------------|
-| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL` (see above). Not a secret |
-| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Not a secret |
-
 | Secret | Description |
 |--------|-------------|
+| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL` (see above). Optional |
+| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token for Worker deployment |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 | `CF_DEPLOYMENT_WORKER` | Production Cloudflare Worker name |
@@ -88,13 +85,10 @@ _(No repository-level secrets currently required for builds — all build secret
 
 ### Environment: Staging
 
-| Variable | Description |
-|----------|-------------|
-| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Not a secret |
-| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Not a secret |
-
 | Secret | Description |
 |--------|-------------|
+| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional |
+| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 | `CF_STAGING_WORKER` | Staging Cloudflare Worker name |

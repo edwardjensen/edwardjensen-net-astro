@@ -51,10 +51,11 @@ jobs:
         env:
           CONTENT_RELAY_URL: ${{ secrets.CONTENT_RELAY_URL }}
           CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
-          # Public build variables for the /hi/{tag}/ intake forms (docs/environment.md). Not secrets:
-          # both end up in the built pages. Unset, the pages build without forms.
-          PUBLIC_INTAKE_SUBMIT_URL: ${{ vars.INTAKE_SUBMIT_URL }}
-          PUBLIC_HCAPTCHA_SITEKEY: ${{ vars.HCAPTCHA_SITEKEY }}
+          # Build settings for the /hi/{tag}/ intake forms (docs/environment.md). Public once built, but
+          # kept as secrets so they stay out of this public repository's settings and are masked in
+          # logs; a variable of the same name also works. Unset, the pages build without forms.
+          PUBLIC_INTAKE_SUBMIT_URL: ${{ secrets.INTAKE_SUBMIT_URL || vars.INTAKE_SUBMIT_URL }}
+          PUBLIC_HCAPTCHA_SITEKEY: ${{ secrets.HCAPTCHA_SITEKEY || vars.HCAPTCHA_SITEKEY }}
         run: npm run build
 
       - name: Deploy to Cloudflare Workers (staging)
