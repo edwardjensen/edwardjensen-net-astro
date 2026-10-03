@@ -120,6 +120,8 @@ This applies to routing, content collections, integrations, configuration, and d
 | `src/lib/feed-utils.ts` | Shared helpers for the RSS/JSON feed endpoints |
 | `src/config.ts` | Site-wide constants: canonical URL, title, author, feed limits, page sizes, search debounce |
 | `src/types/payload.ts` | TypeScript interfaces for all CMS content types |
+| `src/lib/intake.ts` | Build-time helpers for the event intake forms: reads a share token's claims, the field table and caps, the `PUBLIC_*` build config |
+| `src/pages/hi/[tag].astro` | One static page per event, `/hi/{tag}/`, with the event's text and (when it has a usable token) the intake form |
 | `src/pages/search-index.json.ts` | Build-time JSON search index consumed by the Lunr search |
 | `src/styles/global.css` | Tailwind theme, brand color tokens, component CSS classes |
 | `src/layouts/BaseLayout.astro` | Root layout — HTML head, SEO, header nav, footer, photo modal |
@@ -141,12 +143,28 @@ If that does not happen within 180s the step **fails the build** rather than pro
 
 A dispatch with no `relayVersion`, or a relay worker that reports no `version`, degrades to the older `meta.updatedAt` comparison with a warning. `workflow_dispatch` runs skip the gate entirely — a manual republish is an explicit human decision.
 
-**Collections:** `posts`, `working-notes`, `photography`, `historic-posts`, `pages`
+**Collections:** `posts`, `working-notes`, `photography`, `historic-posts`, `pages`, plus `hi-events` (relay-only, optional: see "Event pages and the intake form")
 
 The relay only ever holds **published** documents — the CMS filters on `_status: 'published'`
 on every push, so drafts are structurally incapable of reaching a build. Each collection's
 fetcher is exported from `src/lib/payload.ts` as `getPosts()`, `getWorkingNotes()`,
 `getPhotography()`, `getHistoricPosts()`, `getPages()`.
+
+## Event pages and the intake form
+
+Each event gets its own page, `/hi/{tag}/`, one static page per event in the `hi-events` relay collection, which the CMS builds from its redirector settings whenever they are saved. Adding an event means saving it in the CMS and waiting for the rebuild (a brand-new tag can 404 for a few minutes). The redirector Worker in `cloudflare-workers/hi-redirector/` (`hi.edwardjensen.net/{tag}`) still sends event tags to `/hi` with UTM parameters; pointing them at `/hi/{tag}/` is a separate change, made only once production serves those pages, because the Worker deploys to production on every push to `main` and would otherwise send working short links to a 404.
+
+**`getHiEvents()` is optional.** Unlike the collections above, the relay has no `hi-events` key until the CMS has pushed it once, and a 404 for it returns an empty list with a warning instead of retrying and failing the build (`RelayNotFoundError` in `src/lib/payload.ts`). Each document is `{ id, tag, event, type, heading, message, intakeToken }`, all but the tag nullable. `getStaticPaths()` in `src/pages/hi/[tag].astro` accepts only tags matching `^[a-z0-9-]+$` and drops duplicates.
+
+**What a page shows.** The heading (or "Great to meet you at {event}!") and the message (plain text; a blank line starts a paragraph; escaped, never HTML), then the form, then the same sections as `/hi` (`src/components/sections/HiSections.astro`, shared with `hi.astro` so the two can't drift). The page is `noindex` and not in the sitemap. With no token, an expired token, a token that isn't shaped like one, or the build variables missing, the page has its text and no form.
+
+**The form** (`src/components/sections/IntakeForm.astro`) is a plain `<form>` rendered by this site in its own design, not an iframe. The fields come from the event's **share token**, a signed string the intake system issues and the CMS stores. `src/lib/intake.ts` reads its claims **without verifying them** (the site never holds the signing secret and nothing trusts what it reads): `f` lists the optional fields asked for as letter codes (absent means all of them, an empty string means name only; the name is always asked for and required) and `x` is the expiry, so a link that has already expired at build time gets no form. The page script posts the form with `fetch()` to the intake service and shows the thanks in place, or an error message with what was typed kept and the captcha reset. hCaptcha's script is loaded by the component, so only pages with a form load it; it needs JavaScript, so without it the form shows a notice. hCaptcha's two injected response fields are `display: none` but unlabelled, so the script gives them an `aria-label` as they appear, which keeps pa11y clean.
+
+**Contract with the intake service, which this repo does not own.** The service refuses any website not on its own allowlist, so a new origin that serves the form must be added there first. Keep these in step with it: the token's `f` letter codes and the field table in `src/lib/intake.ts` (labels, input types, `autocomplete`), the field length caps (name 300, email 300, phone 100, organization 300, role 300, website 500, how we met 2000, message 4000), and the error codes it answers with (`name`, `captcha`, `expired`, `invalid`, `too_large`, mapped to sentences in `copy.hi.intake.errors`; `network` is this site's own for a failed request). The form posts `t` (the token), `name`, the optional fields by their keys (`email`, `phone`, `organization`, `role`, `website`, `how_we_met`, `message`), `h-captcha-response` and a `nickname` honeypot that people never see.
+
+**Build variables** (public by nature, since they end up in the built pages, so they are GitHub *variables* and not secrets): `PUBLIC_INTAKE_SUBMIT_URL` (the intake service's submit URL; https, or http on localhost) and `PUBLIC_HCAPTCHA_SITEKEY`. They are passed to every build step from the environment variables `INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY`. If either is missing the pages still build, without forms, and one warning is logged. The submit URL should be the intake service's own platform address rather than a hostname behind a Cloudflare challenge page, because a `fetch()` cannot answer a challenge. See `docs/environment.md`.
+
+**Not in `a11y-urls.json` on purpose:** which event pages exist depends on CMS data, so a fixed URL would break the gate whenever that event is deleted. Check the form pages locally instead: build against a relay that has at least one event with a token, run `astro preview`, and run pa11y (WCAG2AA, as `scripts/a11y-check.js` does) against `/hi/{tag}/`.
 
 **URL patterns (must be preserved):**
 - Blog posts: `/posts/YYYY/YYYY-MM/slug`
@@ -174,7 +192,8 @@ The brand color palette, typography, and component classes are defined in `src/s
 2. Add TypeScript types in `src/types/payload.ts`
 3. Create the page in `src/pages/` using `getStaticPaths()` + `Astro.props`
 4. Use `ContentWrapper` or `BaseLayout` as the layout
-5. Add the URL to `src/data/a11y-urls.json` for accessibility testing
+5. Add the URL to `src/data/a11y-urls.json` for accessibility testing (unless which pages exist
+   depends on CMS data, as for the event pages: see "Event pages and the intake form")
 
 ### Interactive features
 - Use Preact islands (`src/islands/`) for components needing client-side state
@@ -182,10 +201,14 @@ The brand color palette, typography, and component classes are defined in `src/s
 - Use `client:visible` for below-the-fold interactive components
 - Vanilla JS in `public/assets/js/` is acceptable for DOM-heavy features — currently just
   `photo-gallery.js`
+- The event intake form's submit script is a bundled `<script>` inside
+  `src/components/sections/IntakeForm.astro` (see "Event pages and the intake form").
 - Search is the exception: its logic is written inline in `src/pages/search/index.astro` and
   `src/pages/404.astro`, with Lunr loaded from cdnjs via an `is:inline` script. The two copies
-  are near-duplicates — change both, or factor them out first. Lunr is the only external
-  runtime dependency on the site; everything else is self-hosted.
+  are near-duplicates — change both, or factor them out first.
+- External runtime resources: Lunr from cdnjs (search pages), Phosphor icon CSS from unpkg
+  (every page), the Stream proxy iframe on `/saintpaulcamera`, and hCaptcha from its own
+  host on event pages that have a form (and nowhere else). Everything else is self-hosted.
 
 ### Styling
 - Use Tailwind utility classes as the default
@@ -197,7 +220,9 @@ The brand color palette, typography, and component classes are defined in `src/s
 **This is a public repository** (see "This Repository Is Public" above). No credentials, API
 keys, or secrets may ever be committed.
 
-- Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`
+- Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`;
+  optionally `PUBLIC_INTAKE_SUBMIT_URL` and `PUBLIC_HCAPTCHA_SITEKEY` to render the event forms
+  (hCaptcha publishes a test sitekey that works locally)
 - CI/CD: GitHub Actions secrets and environment secrets
 - Worker secrets: `wrangler secret put` (Cloudflare runtime bindings)
 

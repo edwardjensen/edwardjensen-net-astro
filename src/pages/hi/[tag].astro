@@ -1,0 +1,78 @@
+---
+/**
+ * /hi/{tag}/ — the page for one event (the short hi. URL for the tag will redirect here
+ * once production serves these pages; see the redirector Worker).
+ *
+ * One static page per event in the `hi-events` relay collection (the CMS's redirector
+ * settings): the event's heading and message, then the intake form when the event has a
+ * usable share token, then the same sections as /hi. Text and token are written in the CMS;
+ * the token decides which fields the form asks for and when it stops working.
+ *
+ * Unlisted on purpose: the pages are not in the sitemap and are marked noindex.
+ */
+import LandingPage from "../../layouts/LandingPage.astro";
+import HiSections from "../../components/sections/HiSections.astro";
+import IntakeForm from "../../components/sections/IntakeForm.astro";
+import { getHiEvents } from "../../lib/payload";
+import { formStateFor, intakeConfig } from "../../lib/intake";
+import type { PayloadHiEvent } from "../../types/payload";
+import { copy } from "../../data/copy";
+
+export async function getStaticPaths() {
+  const events = await getHiEvents();
+  const seen = new Set<string>();
+  return events
+    // The tag becomes a URL path, so only accept what the CMS itself would allow.
+    .filter((e) => /^[a-z0-9-]+$/.test(e.tag) && !seen.has(e.tag) && seen.add(e.tag))
+    .map((event) => ({ params: { tag: event.tag }, props: { event } }));
+}
+
+interface Props {
+  event: PayloadHiEvent;
+}
+
+const { event } = Astro.props;
+const config = intakeConfig();
+const form = formStateFor(event.intakeToken, config);
+if (form.kind === "none" && form.reason === "expired") {
+  console.warn(`[intake] The intake token for '${event.tag}' has expired; building its page without a form.`);
+}
+
+const heading = event.heading ?? copy.hi.eventHeadingFallback(event.event);
+const paragraphs = (event.message ?? "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+const description = paragraphs[0]?.slice(0, 200) ?? copy.hi.eventMetaDescription;
+---
+
+<LandingPage
+  title={copy.hi.eventMetaTitle(event.event)}
+  description={description}
+  image="/assets/images/bluebackground.png"
+>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex" />
+  </Fragment>
+
+  <!-- The event's heading and message, written in the CMS -->
+  <Fragment>
+    <h1>{heading}</h1>
+    {paragraphs.map((paragraph) => <p class="whitespace-pre-line">{paragraph}</p>)}
+  </Fragment>
+
+  <Fragment slot="sections">
+    {form.kind === "form" && config && event.intakeToken && (
+      <section class="max-w-2xl mx-auto px-4 lg:px-8 pb-12" aria-labelledby="intake-heading">
+        <h2 id="intake-heading" class="font-header font-bold text-3xl text-heading mb-2 lowercase text-center">
+          {copy.hi.intake.heading}
+        </h2>
+        <p class="text-muted mb-8 text-center">{copy.hi.intake.lede}</p>
+        <IntakeForm
+          token={event.intakeToken}
+          fields={form.fields}
+          submitUrl={config.submitUrl}
+          sitekey={config.sitekey}
+        />
+      </section>
+    )}
+    <HiSections />
+  </Fragment>
+</LandingPage>

@@ -1,0 +1,74 @@
+---
+/**
+ * The sections shared by /hi and every /hi/{tag}/ page: featured posts, the "stay connected"
+ * call to action, and the photo strip. Rendered into LandingPage's `sections` slot.
+ * Mirrors Jekyll's sections_landing/ collection (call-to-action, recent-featured-posts,
+ * recent-photos).
+ */
+import SectionCard from "../SectionCard.astro";
+import CallToAction from "./CallToAction.astro";
+import RecentPosts from "./RecentPosts.astro";
+import PhotoStrip from "./PhotoStrip.astro";
+import { getPosts, getPhotography, postPath, photoPath } from "../../lib/payload";
+import type { PostItem } from "../ItemList.astro";
+import { copy } from "../../data/copy";
+
+const posts = await getPosts();
+const photos = await getPhotography();
+
+// Featured/landing-featured posts, newest first
+const featuredPosts = posts
+  .filter((p) => p._status === "published" && p.landingFeatured)
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+const postItems: PostItem[] = featuredPosts.slice(0, 3).map((p) => ({
+  title: p.title,
+  url: postPath(p.slug, p.date),
+  date: p.date,
+  excerpt: p.excerpt ? p.excerpt.replace(/<[^>]+>/g, "") : undefined,
+}));
+
+const sortedPhotos = [...photos].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+const photoItems = sortedPhotos.slice(0, 15).map((p) => ({
+  url: photoPath(p.slug, p.date),
+  title: p.title,
+  imageUrl: p.image?.url ?? "",
+  imageAlt: p.image?.alt ?? p.title,
+}));
+---
+
+<!-- Order 20: Featured posts -->
+<div class="max-w-7xl mx-auto px-4 lg:px-8">
+  <SectionCard
+    section={copy.hi.writingSection}
+    icon="pen"
+    subheader={copy.hi.writingSubheader}
+  >
+    {postItems.length > 0 ? (
+      <RecentPosts posts={postItems} limit={3} showExcerpt />
+    ) : (
+      <RecentPosts posts={[]} limit={3} />
+    )}
+    <div class="mt-6 text-center">
+      <a href="/writing/" class="btn-secondary">{copy.hi.ctaLink}</a>
+    </div>
+  </SectionCard>
+</div>
+
+<!-- Order 90: Call to action — "Let's stay connected!" -->
+<section
+  class="flex flex-col items-center justify-center text-center max-w-7xl mx-auto px-4 lg:px-8 py-6 mb-8"
+  aria-label="Call to Action"
+>
+  <h2 class="text-3xl mb-6 font-header font-bold text-heading">{copy.hi.ctaHeading}</h2>
+  <div class="text-xl">
+    <CallToAction />
+  </div>
+</section>
+
+<!-- Order 95: Photography strip -->
+<section class="w-full pt-8 lg:pt-12 pb-12 lg:pb-16" aria-label="Photography">
+  <PhotoStrip photos={photoItems} />
+</section>

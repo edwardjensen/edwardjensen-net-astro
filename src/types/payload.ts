@@ -145,6 +145,26 @@ export interface PayloadPage {
   createdAt: string;
 }
 
+/**
+ * One event on the /hi page, from the `hi-events` relay collection (not a CMS collection:
+ * the CMS builds it from its redirector settings). Every field except the tag may be null.
+ */
+export interface PayloadHiEvent {
+  /** The tag again; the relay keys single documents by id. */
+  id: string;
+  /** URL tag, lowercase letters, digits and hyphens: the page is /hi/{tag}/. */
+  tag: string;
+  /** Event display name. */
+  event: string;
+  type: string;
+  /** Page heading, or null for the site's fallback. */
+  heading: string | null;
+  /** Plain text under the heading; a blank line starts a paragraph. */
+  message: string | null;
+  /** The signed share token that identifies this event to the intake form, or null for no form. */
+  intakeToken: string | null;
+}
+
 export interface PayloadListResponse<T> {
   docs: T[];
   totalDocs: number;
