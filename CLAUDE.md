@@ -162,7 +162,7 @@ Each event gets its own page, `/hi/{tag}/`, one static page per event in the `hi
 
 **Contract with the intake service, which this repo does not own.** The service refuses any website not on its own allowlist, so a new origin that serves the form must be added there first. Keep these in step with it: the token's `f` letter codes and the field table in `src/lib/intake.ts` (labels, input types, `autocomplete`), the field length caps (name 300, email 300, phone 100, organization 300, role 300, website 500, how we met 2000, message 4000), and the error codes it answers with (`name`, `captcha`, `expired`, `invalid`, `too_large`, mapped to sentences in `copy.hi.intake.errors`; `network` is this site's own for a failed request). The form posts `t` (the token), `name`, the optional fields by their keys (`email`, `phone`, `organization`, `role`, `website`, `how_we_met`, `message`), `h-captcha-response` and a `nickname` honeypot that people never see.
 
-**Build settings** (public once built, since they end up in the page HTML and the build artifact, but kept as GitHub *secrets* so they stay out of this public repository's settings and are masked in logs): `PUBLIC_INTAKE_SUBMIT_URL` (the intake service's submit URL; https, or http on localhost) and `PUBLIC_HCAPTCHA_SITEKEY`. They are passed to every build step from the environment secrets `INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY`; the workflows read `secrets.NAME || vars.NAME`, so a variable of the same name also works. If either is missing the pages still build, without forms, and one warning is logged. The submit URL should be the intake service's own platform address rather than a hostname behind a Cloudflare challenge page, because a `fetch()` cannot answer a challenge. See `docs/environment.md`.
+**Build settings** (public once built, since they end up in the page HTML): `PUBLIC_INTAKE_SUBMIT_URL` (the intake service's submit URL; https, or http on localhost) and `PUBLIC_HCAPTCHA_SITEKEY`. They are passed to every build step from the repository *variables* `INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY`. If either is missing the pages still build, without forms, and one warning is logged. The submit URL should be the intake service's own platform address rather than a hostname behind a Cloudflare challenge page, because a `fetch()` cannot answer a challenge. See `docs/environment.md`.
 
 **Not in `a11y-urls.json` on purpose:** which event pages exist depends on CMS data, so a fixed URL would break the gate whenever that event is deleted. Check the form pages locally instead: build against a relay that has at least one event with a token, run `astro preview`, and run pa11y (WCAG2AA, as `scripts/a11y-check.js` does) against `/hi/{tag}/`.
 
@@ -223,7 +223,10 @@ keys, or secrets may ever be committed.
 - Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`;
   optionally `PUBLIC_INTAKE_SUBMIT_URL` and `PUBLIC_HCAPTCHA_SITEKEY` to render the event forms
   (hCaptcha publishes a test sitekey that works locally)
-- CI/CD: GitHub Actions secrets and environment secrets
+- CI/CD: GitHub Actions secrets and variables. **A value is a variable only if it is already
+  public** (served in the built site or committed here) — this repo's Actions logs are public, and
+  variables print in full where secrets are masked. Values both environments use live once at
+  repository level. Full table in `docs/environment.md`; rotation procedures live in the CMS repo.
 - Worker secrets: `wrangler secret put` (Cloudflare runtime bindings)
 
 See `docs/environment.md` for the full list of required secrets and variables.

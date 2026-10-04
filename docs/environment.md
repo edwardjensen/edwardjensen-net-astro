@@ -69,41 +69,46 @@ Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload 
 
 ## GitHub Secrets & Variables
 
-### Repository Variables
+**Variable or secret?** A value is a **variable** only if it is already public: served in the built site or committed to this repo. This repository is public, so its Actions logs are too; variables print in full there, secrets are masked. Everything else is a **secret**.
 
-| Variable | Description |
-|----------|-------------|
-| `NODE_VERSION` | Node.js version for CI (e.g., `26.9.0`) |
+**Precedence.** An environment value overrides a repository value of the same name. Values used by both environments live once at repository level; only what genuinely differs per environment is set on the environment.
 
-`INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY` (listed under each environment below) are set per environment, because the PR checks run in the `production` environment and staging builds use the `staging` one. They are optional: a build without them is fine, it just has no event forms. Both values are public once built (they are in the page's HTML, and in the build artifact), but they are kept as secrets so they stay out of this public repository's settings and are masked in workflow logs. The workflows read `secrets.NAME || vars.NAME`, so a variable of the same name also works; a secret wins.
+Rotation procedures for the credentials below (and for those the CMS owns) live in the CMS repository's documentation, not here.
 
-### Repository Secrets
+### Repository
 
-_(No repository-level secrets currently required for builds — all build secrets are in environments.)_
+| Name | Kind | Description |
+|------|------|-------------|
+| `NODE_VERSION` | Variable | Node.js version for CI (e.g. `26.9.0`) |
+| `TIMEZONE` | Variable | Time zone for the build date in the footer |
+| `CONTENT_RELAY_URL` | Variable | Production content relay base URL (`https://contentrelay.edwardjensen.net`) |
+| `INTAKE_SUBMIT_URL` | Variable | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional: without it the event pages have no form |
+| `HCAPTCHA_SITEKEY` | Variable | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional, as above |
+| `CONTENT_RELAY_READ_KEYS` | Secret | Read key for the production relay (this repo's own key; the relay accepts several) |
+| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Secret | Tailscale OAuth client for runners (`tag:ci`): the hi-redirector, and staging's `staging-direct` source and server target |
+| `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
 
 ### Environment: Production
 
-| Secret | Description |
-|--------|-------------|
-| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL` (see above). Optional |
-| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token for Worker deployment |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-| `CF_DEPLOYMENT_WORKER` | Production Cloudflare Worker name |
-| `CONTENT_RELAY_URL` | Content relay base URL (`https://contentrelay.edwardjensen.net`) |
-| `CONTENT_RELAY_READ_KEYS` | Read key for the content relay |
+| Name | Kind | Description |
+|------|------|-------------|
+| `CF_DEPLOYMENT_WORKER` | Variable | Production Cloudflare Worker name |
+| `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token for production deploys (site and hi-redirector) |
+| `CMS_URL` | Secret | Production CMS root (no `/api`), reached over Tailscale by the hi-redirector deploy |
+
+PR checks also run in this environment, so they build with production values.
 
 ### Environment: Staging
 
-| Secret | Description |
-|--------|-------------|
-| `CONTENT_RELAY_URL` / `CONTENT_RELAY_READ_KEYS` | The **production** relay, as in the production environment (the `production` content source) |
-| `STAGING_RELAY_URL` / `STAGING_RELAY_READ_KEYS` | The staging relay (the `staging-relay` content source) |
-| `STAGING_CMS_URL` | The staging CMS API base, without `/v2` (the `staging-direct` content source; reached over Tailscale, no key) |
-| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Tailscale OAuth client for the runner (`tag:ci`); needed for `staging-direct` and the `local-server` target |
-| `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Staging server (tailnet name), the deploy user, and the directory holding `releases/` and `current` |
-| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `CF_DEPLOYMENT_WORKER` | For the `cloudflare` target |
-| `INTAKE_SUBMIT_URL` / `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL` / `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
+| Name | Kind | Description |
+|------|------|-------------|
+| `CF_DEPLOYMENT_WORKER` | Variable | Staging Cloudflare Worker name (the `cloudflare` target) |
+| `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token scoped to the staging Worker |
+| `CMS_URL` | Secret | Staging CMS root (no `/api`); the `staging-direct` source reads `$CMS_URL/api` over Tailscale, with no key |
+| `STAGING_RELAY_URL` / `STAGING_RELAY_READ_KEYS` | Secret | Staging relay and this repo's read key for it (the `staging-relay` source) |
+| `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Secret | Staging server (tailnet name), deploy user, and the directory holding `releases/` and `current` |
+
+Staging inherits `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEYS` from the repository, so the `production` source reads the production relay.
 
 ## Cloudflare Worker Secrets
 
