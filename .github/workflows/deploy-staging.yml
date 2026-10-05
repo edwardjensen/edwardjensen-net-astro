@@ -63,6 +63,14 @@ jobs:
     name: Build and Deploy Staging
     runs-on: ubuntu-latest
     environment: staging
+    permissions:
+      contents: read
+      id-token: write # Tailscale workload identity federation (no OAuth secret)
+    env:
+      # Server login details stay in secrets: this repo and its Actions logs are public.
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      SSH_OPTS: -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null
 
     steps:
       - name: Resolve configuration
@@ -154,10 +162,20 @@ jobs:
         if: steps.config.outputs.cms_source == 'staging-direct' || steps.config.outputs.deploy_target == 'local-server'
         uses: tailscale/github-action@v4
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
-          tags: tag:ci
+          oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:ci,tag:ci-website-staging
           args: --accept-dns=true
+
+      - name: Preflight SSH
+        # Fails fast if the runner's tags don't grant the deploy login. Compared rather
+        # than printed, so the login name never reaches the public log.
+        if: steps.config.outputs.deploy_target == 'local-server'
+        run: |
+          if [[ "$(ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" 'id -un')" != "${DEPLOY_USER}" ]]; then
+            echo "::error::Tailscale SSH did not log in as the expected deploy user."
+            exit 1
+          fi
 
       - name: Generate build info
         id: build-info
@@ -240,26 +258,27 @@ jobs:
 
       - name: Deploy to staging server
         if: steps.config.outputs.deploy_target == 'local-server'
-        # Atomic release swap over Tailscale SSH (the tailnet ACL authorises tag:ci;
-        # there is no SSH key). The new release is built beside the live one, then a
-        # symlink is switched in one step, so the site is never half-updated and the
-        # web server never needs a restart. Old releases are kept for rollback.
+        # Atomic release swap over Tailscale SSH: the runner's tailnet tags authorise
+        # the deploy login, so there is no SSH key or known_hosts entry. The new release
+        # is built beside the live one, then a symlink is switched in one step, so the
+        # site is never half-updated and the web server never needs a restart. Old
+        # releases are kept for rollback.
         #
         # Server-side requirement: the web server must serve $DEPLOY_PATH/current,
         # resolved per request (mount $DEPLOY_PATH, not the symlink itself).
         env:
-          DEPLOY_TARGET_HOST: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           SHA: ${{ steps.build-info.outputs.sha }}
         run: |
           RELEASE="${DEPLOY_PATH}/releases/$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"
 
-          ssh_run() { tailscale ssh "${DEPLOY_TARGET_HOST}" "$@"; }
+          DEPLOY_TARGET_HOST="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh_run() { ssh $SSH_OPTS "${DEPLOY_TARGET_HOST}" "$@"; }
 
           for i in 1 2 3; do
             if ssh_run "mkdir -p '${DEPLOY_PATH}/releases'" \
               && rsync -a --delete --link-dest="${DEPLOY_PATH}/current/" \
-                   -e "tailscale ssh" --rsync-path="mkdir -p '${RELEASE}' && rsync" \
+                   -e "ssh $SSH_OPTS" --rsync-path="mkdir -p '${RELEASE}' && rsync" \
                    dist/client/ "${DEPLOY_TARGET_HOST}:${RELEASE}/"; then
               break
             fi

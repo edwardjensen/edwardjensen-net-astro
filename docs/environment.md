@@ -48,7 +48,7 @@ The only staging workflow. Triggers: push to `main`, manual dispatch, and CMS `r
 
 Defaults: push to `main` → main + production + local-server; `staging_cms_publish` → latest-tag + staging-relay + local-server; `staging_cms_photo_publish` → main + staging-relay + local-server; a manual run starts at main + production + local-server. `staging-relay` dispatches run the relay freshness gate first. The generated site title records the code version and content source, e.g. `Edward Jensen [STAGING · v14.2.0 · staging-relay]`.
 
-**Server deploys** go over Tailscale SSH (the runner is `tag:ci`; the tailnet ACL authorises it, so there is no SSH key). The new release is rsynced into `releases/<timestamp>-<sha>/` (hard-linked against `current`, so unchanged files cost nothing), `current` is switched with an atomic symlink swap, and the newest 3 releases are kept. The web server must serve `current` resolved per request, so mount the deploy directory (not the symlink) and point the document root at `current`; it is never restarted. To roll back, repoint `current` at an earlier release.
+**Server deploys** go over Tailscale SSH. The runner joins the tailnet through Tailscale workload identity federation (GitHub OIDC, so the job needs `id-token: write`) with `tag:ci` plus the staging deploy group's tag, and those tags are what authorise its dedicated deploy login: there is no SSH key or `known_hosts` entry. A `Preflight SSH` step checks the login before anything is uploaded, comparing rather than printing it because the logs are public. The deploy login has no `sudo`. The new release is rsynced into `releases/<timestamp>-<sha>/` (hard-linked against `current`, so unchanged files cost nothing), `current` is switched with an atomic symlink swap, and the newest 3 releases are kept. The web server must serve `current` resolved per request, so mount the deploy directory (not the symlink) and point the document root at `current`; it is never restarted. To roll back, repoint `current` at an earlier release.
 
 ### Production Deployment (`deploy-prod-site.yml`)
 
@@ -85,7 +85,7 @@ Rotation procedures for the credentials below (and for those the CMS owns) live 
 | `INTAKE_SUBMIT_URL` | Variable | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional: without it the event pages have no form |
 | `HCAPTCHA_SITEKEY` | Variable | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional, as above |
 | `CONTENT_RELAY_READ_KEYS` | Secret | Read key for the production relay (this repo's own key; the relay accepts several) |
-| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Secret | Tailscale OAuth client for runners (`tag:ci`): the hi-redirector, and staging's `staging-direct` source and server target |
+| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Secret | Tailscale OAuth client (`tag:ci`) used by the hi-redirector only |
 | `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
 
 ### Environment: Production
@@ -106,7 +106,8 @@ PR checks also run in this environment, so they build with production values.
 | `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token scoped to the staging Worker |
 | `CMS_URL` | Secret | Staging CMS root (no `/api`); the `staging-direct` source reads `$CMS_URL/api` over Tailscale, with no key |
 | `STAGING_RELAY_URL` / `STAGING_RELAY_READ_KEYS` | Secret | Staging relay and this repo's read key for it (the `staging-relay` source) |
-| `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Secret | Staging server (tailnet name), deploy user, and the directory holding `releases/` and `current` |
+| `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` | Variable | Staging's Tailscale trust credential (workload identity federation), for the `staging-direct` source and the server target. Not the same thing as the repository *secret* of the same name |
+| `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Secret | Staging server (its MagicDNS name, never a LAN address, which would bypass Tailscale SSH), deploy login, and the directory holding `releases/` and `current`. Kept as secrets rather than variables so they are masked in the public logs |
 
 Staging inherits `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEYS` from the repository, so the `production` source reads the production relay.
 

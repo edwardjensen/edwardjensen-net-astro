@@ -262,7 +262,10 @@ See `docs/environment.md` for the full list of required secrets and variables.
   `staging_cms_publish` dispatch → latest-tag + staging-relay + local-server;
   `staging_cms_photo_publish` dispatch → main + staging-relay + local-server; a manual run starts at
   main + production + local-server, with all three selectable.
-- **Staging server deploys** are an atomic release swap over Tailscale SSH (no SSH key): rsync into
+- **Staging server deploys** are an atomic release swap over Tailscale SSH. The runner joins through
+  workload identity federation (`vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE`, `id-token: write`) with
+  `tag:ci,tag:ci-website-staging`, and those tags authorise the deploy login: no SSH key, no `sudo`.
+  Host, login and path stay **secrets** so they are masked in this public repo's logs. Then rsync into
   `releases/<timestamp>-<sha>/` (hard-linked against `current`), switch the `current` symlink, keep the
   newest 3 releases for rollback. The web server serves `current` and is never restarted.
 - **Production:** push a version tag (`vX.Y.Z`)
