@@ -106,6 +106,7 @@ PR checks also run in this environment, so they build with production values.
 | `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token scoped to the staging Worker |
 | `CMS_URL` | Secret | Staging CMS root (no `/api`); the `staging-direct` source reads `$CMS_URL/api` over Tailscale, with no key |
 | `STAGING_RELAY_URL` / `STAGING_RELAY_READ_KEYS` | Secret | Staging relay and this repo's read key for it (the `staging-relay` source) |
+| `TS_TAGS` | Variable | Tags the staging runner joins with, comma-separated (`tag:ci` plus the staging deploy group's tag). Must match the tag the deploy login is registered under |
 | `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` | Variable | Staging's Tailscale trust credential (workload identity federation), for the `staging-direct` source and the server target. Not the same thing as the repository *secret* of the same name |
 | `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Secret | Staging server (its MagicDNS name, never a LAN address, which would bypass Tailscale SSH), deploy login, and the directory holding `releases/` and `current`. Kept as secrets rather than variables so they are masked in the public logs |
 

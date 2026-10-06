@@ -164,7 +164,7 @@ jobs:
         with:
           oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
           audience: ${{ vars.TS_AUDIENCE }}
-          tags: tag:ci,tag:ci-website-staging
+          tags: ${{ vars.TS_TAGS }}
           args: --accept-dns=true
 
       - name: Preflight SSH
