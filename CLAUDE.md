@@ -268,7 +268,10 @@ See `docs/environment.md` for the full list of required secrets and variables.
   Host, login and path stay **secrets** so they are masked in this public repo's logs. Nothing about
   the target is hardcoded in the workflow: configuration goes in `vars.*` or `secrets.*`. Then rsync into
   `releases/<timestamp>-<sha>/` (hard-linked against `current`), switch the `current` symlink, keep the
-  newest 3 releases for rollback. The web server serves `current` and is never restarted.
+  newest 3 releases for rollback. `current` is a relative link, and the web server serves it and is never restarted.
+- **Cloudflare staging is temporary:** `teardown-staging-cloudflare.yml` deletes the staging worker nightly
+  (09:00 UTC), so a `deploy_target=cloudflare` build is only served until then; the next such run recreates it.
+  It only ever deletes a `-staging` worker name, in the staging environment.
 - **Production:** push a version tag (`vX.Y.Z`)
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag
 - Target is Cloudflare Workers with static assets (not Pages)
