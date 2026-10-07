@@ -69,7 +69,7 @@ Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload 
 
 ### Worker Deployments
 
-- `deploy-hi-redirector.yml` — deploys the short URL redirect worker on code changes
+- `deploy-hi-redirector.yml` — deploys the short URL redirect worker on code changes. It joins the tailnet through the production environment's trust credential (`vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE` / `vars.TS_TAGS`, `id-token: write`) only to fetch the redirect config from the CMS
 
 ## GitHub Secrets & Variables
 
@@ -89,7 +89,6 @@ Rotation procedures for the credentials below (and for those the CMS owns) live 
 | `INTAKE_SUBMIT_URL` | Variable | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional: without it the event pages have no form |
 | `HCAPTCHA_SITEKEY` | Variable | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional, as above |
 | `CONTENT_RELAY_READ_KEYS` | Secret | Read key for the production relay (this repo's own key; the relay accepts several) |
-| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Secret | Tailscale OAuth client (`tag:ci`) used by the hi-redirector only |
 | `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
 
 ### Environment: Production
@@ -99,6 +98,8 @@ Rotation procedures for the credentials below (and for those the CMS owns) live 
 | `CF_DEPLOYMENT_WORKER` | Variable | Production Cloudflare Worker name |
 | `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token for production deploys (site and hi-redirector) |
 | `CMS_URL` | Secret | Production CMS root (no `/api`), reached over Tailscale by the hi-redirector deploy |
+| `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` | Variable | Production's Tailscale trust credential (workload identity federation, GitHub OIDC), used by the hi-redirector deploy to reach the CMS. No OAuth secret |
+| `TS_TAGS` | Variable | Tags the hi-redirector runner joins with. It only needs network access to the CMS, not SSH, so no deploy group tag |
 
 PR checks also run in this environment, so they build with production values.
 
