@@ -16,7 +16,7 @@ name: Deploy Staging Site
 #
 #   push to main                          main       production      local-server
 #   staging_cms_publish (dispatch)        latest-tag staging-relay   local-server
-#   staging_cms_photo_publish (dispatch)  main       staging-relay   local-server
+#   staging_cms_photo_publish (dispatch)  latest-tag staging-relay   local-server
 #   manual run                            main       production      local-server  (all selectable)
 #
 # One job on purpose: the deploy then uses the exact checkout, lockfile and wrangler
@@ -93,11 +93,8 @@ jobs:
               CMS_SOURCE="${IN_CMS_SOURCE}"
               DEPLOY_TARGET="${IN_DEPLOY_TARGET}"
               ;;
-            repository_dispatch:staging_cms_publish)
+            repository_dispatch:staging_cms_publish|repository_dispatch:staging_cms_photo_publish)
               SITE_CODE=latest-tag
-              CMS_SOURCE=staging-relay
-              ;;
-            repository_dispatch:staging_cms_photo_publish)
               CMS_SOURCE=staging-relay
               ;;
           esac

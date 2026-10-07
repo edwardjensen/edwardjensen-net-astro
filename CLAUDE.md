@@ -260,7 +260,7 @@ See `docs/environment.md` for the full list of required secrets and variables.
   **deploy target** (`local-server` | `cloudflare`). Defaults by trigger (the `Resolve configuration`
   step is the single place to change them): push to `main` → main + production + local-server;
   `staging_cms_publish` dispatch → latest-tag + staging-relay + local-server;
-  `staging_cms_photo_publish` dispatch → main + staging-relay + local-server; a manual run starts at
+  `staging_cms_photo_publish` dispatch → latest-tag + staging-relay + local-server; a manual run starts at
   main + production + local-server, with all three selectable.
 - **Staging server deploys** are an atomic release swap over Tailscale SSH. The runner joins through
   workload identity federation (`vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE`, `id-token: write`) with
