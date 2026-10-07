@@ -69,8 +69,8 @@ already mirrored it.
 land it on `main` through a pull request. Never commit directly to `main`.**
 
 This is not a style preference — `main` is a deployment trigger. A push to `main` builds and
-deploys the site to the **staging** Cloudflare Worker automatically
-(`deploy-staging-direct.yml`). Committing straight to `main` therefore ships, and skips the PR
+deploys the site to the **staging** environment automatically
+(`deploy-staging.yml`: by default the staging server, see "Deployment"). Committing straight to `main` therefore ships, and skips the PR
 checks — the build validation and the pa11y accessibility gate, which is a required merge gate
 precisely so inaccessible markup can't reach the site.
 
@@ -137,7 +137,7 @@ All content is fetched from the Cloudflare KV content relay. The API client in `
 
 The relay is populated by Payload CMS via a push hook on every content publish. Astro builds read from the relay — no VPN or direct CMS access is required.
 
-**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, **both** `republish-prod.yml` and `republish-staging.yml` poll `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
+**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, `republish-prod.yml` — and `deploy-staging.yml` for `staging-relay` dispatches — run `.github/scripts/wait-for-relay.sh` (one shared copy, kept outside the built code so it exists whichever tag is checked out), which polls `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
 
 If that does not happen within 180s the step **fails the build** rather than proceeding. Building from unverified relay data is how stale content reached production before; the CMS already refuses to dispatch at all when its relay push fails, and this keeps that guarantee on this side. Re-run the workflow once the relay is healthy.
 
@@ -162,7 +162,7 @@ Each event gets its own page, `/hi/{tag}/`, one static page per event in the `hi
 
 **Contract with the intake service, which this repo does not own.** The service refuses any website not on its own allowlist, so a new origin that serves the form must be added there first. Keep these in step with it: the token's `f` letter codes and the field table in `src/lib/intake.ts` (labels, input types, `autocomplete`), the field length caps (name 300, email 300, phone 100, organization 300, role 300, website 500, how we met 2000, message 4000), and the error codes it answers with (`name`, `captcha`, `expired`, `invalid`, `too_large`, mapped to sentences in `copy.hi.intake.errors`; `network` is this site's own for a failed request). The form posts `t` (the token), `name`, the optional fields by their keys (`email`, `phone`, `organization`, `role`, `website`, `how_we_met`, `message`), `h-captcha-response` and a `nickname` honeypot that people never see.
 
-**Build settings** (public once built, since they end up in the page HTML and the build artifact, but kept as GitHub *secrets* so they stay out of this public repository's settings and are masked in logs): `PUBLIC_INTAKE_SUBMIT_URL` (the intake service's submit URL; https, or http on localhost) and `PUBLIC_HCAPTCHA_SITEKEY`. They are passed to every build step from the environment secrets `INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY`; the workflows read `secrets.NAME || vars.NAME`, so a variable of the same name also works. If either is missing the pages still build, without forms, and one warning is logged. The submit URL should be the intake service's own platform address rather than a hostname behind a Cloudflare challenge page, because a `fetch()` cannot answer a challenge. See `docs/environment.md`.
+**Build settings** (public once built, since they end up in the page HTML): `PUBLIC_INTAKE_SUBMIT_URL` (the intake service's submit URL; https, or http on localhost) and `PUBLIC_HCAPTCHA_SITEKEY`. They are passed to every build step from the repository *variables* `INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY`. If either is missing the pages still build, without forms, and one warning is logged. The submit URL should be the intake service's own platform address rather than a hostname behind a Cloudflare challenge page, because a `fetch()` cannot answer a challenge. See `docs/environment.md`.
 
 **Not in `a11y-urls.json` on purpose:** which event pages exist depends on CMS data, so a fixed URL would break the gate whenever that event is deleted. Check the form pages locally instead: build against a relay that has at least one event with a token, run `astro preview`, and run pa11y (WCAG2AA, as `scripts/a11y-check.js` does) against `/hi/{tag}/`.
 
@@ -223,7 +223,10 @@ keys, or secrets may ever be committed.
 - Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`;
   optionally `PUBLIC_INTAKE_SUBMIT_URL` and `PUBLIC_HCAPTCHA_SITEKEY` to render the event forms
   (hCaptcha publishes a test sitekey that works locally)
-- CI/CD: GitHub Actions secrets and environment secrets
+- CI/CD: GitHub Actions secrets and variables. **A value is a variable only if it is already
+  public** (served in the built site or committed here) — this repo's Actions logs are public, and
+  variables print in full where secrets are masked. Values both environments use live once at
+  repository level. Full table in `docs/environment.md`; rotation procedures live in the CMS repo.
 - Worker secrets: `wrangler secret put` (Cloudflare runtime bindings)
 
 See `docs/environment.md` for the full list of required secrets and variables.
@@ -250,7 +253,25 @@ See `docs/environment.md` for the full list of required secrets and variables.
 
 ## Deployment
 
-- **Staging:** automatic on push to `main`
+- **Staging:** one workflow, `deploy-staging.yml`, for every staging operation. Each run has three
+  independent choices — **site code** (`main` | `latest-tag`), **content source** (`production` =
+  production relay | `staging-relay` = staging relay, the path production uses, so relay changes get
+  tested | `staging-direct` = the staging CMS itself over Tailscale; no relay, so no event pages) and
+  **deploy target** (`local-server` | `cloudflare`). Defaults by trigger (the `Resolve configuration`
+  step is the single place to change them): push to `main` → main + production + local-server;
+  `staging_cms_publish` dispatch → latest-tag + staging-relay + local-server;
+  `staging_cms_photo_publish` dispatch → latest-tag + staging-relay + local-server; a manual run starts at
+  main + production + local-server, with all three selectable.
+- **Staging server deploys** are an atomic release swap over Tailscale SSH. The runner joins through
+  workload identity federation (`vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE`, `id-token: write`) with
+  the tags in `vars.TS_TAGS`, and those tags authorise the deploy login: no SSH key, no `sudo`.
+  Host, login and path stay **secrets** so they are masked in this public repo's logs. Nothing about
+  the target is hardcoded in the workflow: configuration goes in `vars.*` or `secrets.*`. Then rsync into
+  `releases/<timestamp>-<sha>/` (hard-linked against `current`), switch the `current` symlink, keep the
+  newest 3 releases for rollback. `current` is a relative link, and the web server serves it and is never restarted.
+- **Cloudflare staging is temporary:** `teardown-staging-cloudflare.yml` deletes the staging worker nightly
+  (09:00 UTC), so a `deploy_target=cloudflare` build is only served until then; the next such run recreates it.
+  It only ever deletes a `-staging` worker name, in the staging environment.
 - **Production:** push a version tag (`vX.Y.Z`)
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag
 - Target is Cloudflare Workers with static assets (not Pages)

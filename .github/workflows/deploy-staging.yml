@@ -1,0 +1,301 @@
+name: Deploy Staging Site
+
+# The one workflow for every staging deployment. Three independent choices:
+#
+#   site_code      main | latest-tag      which code to build
+#   cms_source     production | staging-relay | staging-direct
+#                                         where content comes from:
+#                    production      the production content relay
+#                    staging-relay   the staging content relay (same path production
+#                                    uses, so this is how relay changes get tested)
+#                    staging-direct  the staging CMS itself ($CMS_URL/api), over Tailscale
+#                                    (no relay, so no event pages — hi-events is relay-only)
+#   deploy_target  local-server | cloudflare   where the built site goes
+#
+# Trigger mapping (the `Resolve` step below is the single place to change it):
+#
+#   push to main                          main       production      local-server
+#   staging_cms_publish (dispatch)        latest-tag staging-relay   local-server
+#   staging_cms_photo_publish (dispatch)  latest-tag staging-relay   local-server
+#   manual run                            main       production      local-server  (all selectable)
+#
+# One job on purpose: the deploy then uses the exact checkout, lockfile and wrangler
+# that built the site, which matters for latest-tag (wrangler and the Astro adapter
+# are version-coupled; see CLAUDE.md). No artifact hand-off.
+
+permissions:
+  contents: read
+
+# Never run two staging deploys at once (they would race on the same target), and
+# never cancel one midway: a half-finished deploy is worse than a queued one.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      site_code:
+        description: 'Site code'
+        required: true
+        type: choice
+        default: main
+        options: [main, latest-tag]
+      cms_source:
+        description: 'Content source'
+        required: true
+        type: choice
+        default: production
+        options: [production, staging-relay, staging-direct]
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        type: choice
+        default: local-server
+        options: [local-server, cloudflare]
+  repository_dispatch:
+    types: ['staging_cms_publish', 'staging_cms_photo_publish']
+
+jobs:
+  staging:
+    name: Build and Deploy Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write # Tailscale workload identity federation (no OAuth secret)
+    env:
+      # Server login details stay in secrets: this repo and its Actions logs are public.
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      SSH_OPTS: -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null
+
+    steps:
+      - name: Resolve configuration
+        id: config
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          IN_SITE_CODE: ${{ inputs.site_code }}
+          IN_CMS_SOURCE: ${{ inputs.cms_source }}
+          IN_DEPLOY_TARGET: ${{ inputs.deploy_target }}
+        run: |
+          # Defaults, also used for push and any unrecognised dispatch action.
+          SITE_CODE=main
+          CMS_SOURCE=production
+          DEPLOY_TARGET=local-server
+
+          case "${EVENT}:${ACTION}" in
+            workflow_dispatch:*)
+              SITE_CODE="${IN_SITE_CODE}"
+              CMS_SOURCE="${IN_CMS_SOURCE}"
+              DEPLOY_TARGET="${IN_DEPLOY_TARGET}"
+              ;;
+            repository_dispatch:staging_cms_publish|repository_dispatch:staging_cms_photo_publish)
+              SITE_CODE=latest-tag
+              CMS_SOURCE=staging-relay
+              ;;
+          esac
+
+          {
+            echo "site_code=${SITE_CODE}"
+            echo "cms_source=${CMS_SOURCE}"
+            echo "deploy_target=${DEPLOY_TARGET}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Staging configuration"
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Trigger | ${EVENT}${ACTION:+ (${ACTION})} |"
+            echo "| Site code | ${SITE_CODE} |"
+            echo "| Content source | ${CMS_SOURCE} |"
+            echo "| Deploy target | ${DEPLOY_TARGET} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Wait for relay content to reflect this publish
+        # Only meaningful for a relay-backed publish. staging-direct reads the CMS
+        # itself, so there is no relay write to wait for. Runs on main's copy of the
+        # script, before the tag checkout below.
+        if: github.event_name == 'repository_dispatch' && steps.config.outputs.cms_source == 'staging-relay'
+        env:
+          CONTENT_RELAY_URL: ${{ secrets.STAGING_RELAY_URL }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.STAGING_RELAY_READ_KEYS }}
+          COLLECTION: ${{ github.event.client_payload.collection }}
+          RELAY_VERSION: ${{ github.event.client_payload.relayVersion }}
+          UPDATED_AT: ${{ github.event.client_payload.updatedAt }}
+        run: .github/scripts/wait-for-relay.sh "$COLLECTION" "$RELAY_VERSION" "$UPDATED_AT"
+
+      - name: Checkout latest production tag
+        if: steps.config.outputs.site_code == 'latest-tag'
+        run: |
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          if [[ -z "${LATEST_TAG}" ]]; then
+            echo "::error::No production tag found, so 'latest-tag' has nothing to build."
+            exit 1
+          fi
+          echo "Checking out: ${LATEST_TAG}"
+          git checkout "${LATEST_TAG}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Connect to Tailscale
+        # Needed to read the staging CMS directly, and to reach the staging server.
+        if: steps.config.outputs.cms_source == 'staging-direct' || steps.config.outputs.deploy_target == 'local-server'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: ${{ vars.TS_TAGS }}
+          args: --accept-dns=true
+
+      - name: Preflight SSH
+        # Fails fast if the runner's tags don't grant the deploy login. Compared rather
+        # than printed, so the login name never reaches the public log.
+        if: steps.config.outputs.deploy_target == 'local-server'
+        run: |
+          if [[ "$(ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" 'id -un')" != "${DEPLOY_USER}" ]]; then
+            echo "::error::Tailscale SSH did not log in as the expected deploy user."
+            exit 1
+          fi
+
+      - name: Generate build info
+        id: build-info
+        env:
+          SITE_CODE: ${{ steps.config.outputs.site_code }}
+          CMS_SOURCE: ${{ steps.config.outputs.cms_source }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          if [[ "${SITE_CODE}" == "latest-tag" ]]; then
+            VERSION=$(git describe --tags --exact-match HEAD)
+          else
+            VERSION="main-$(git rev-parse --short HEAD)"
+          fi
+          TITLE="Edward Jensen [STAGING · ${VERSION} · ${CMS_SOURCE}]"
+          BUILD_DATE=$(TZ=${{ vars.TIMEZONE }} date +'%-d %B %Y')
+
+          cat > src/data/buildinfo.ts << HEREDOC
+          // Auto-generated by CI/CD. Do not edit manually.
+          export const buildInfo = {
+            commit: "${SHA}",
+            buildId: "${{ github.run_id }}",
+            buildDate: "${BUILD_DATE}",
+            version: "${VERSION}",
+            buildName: "${{ github.workflow }}",
+            siteTitle: "${TITLE}",
+          } as const;
+          HEREDOC
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build site
+        env:
+          CMS_SOURCE: ${{ steps.config.outputs.cms_source }}
+          PROD_RELAY_URL: ${{ vars.CONTENT_RELAY_URL }}
+          PROD_RELAY_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
+          STAGING_RELAY_URL: ${{ secrets.STAGING_RELAY_URL }}
+          STAGING_RELAY_KEY: ${{ secrets.STAGING_RELAY_READ_KEYS }}
+          # The staging CMS root (no /api). Same name as production's CMS_URL, read by the hi-redirector.
+          CMS_URL: ${{ secrets.CMS_URL }}
+          # Build settings for the /hi/{tag}/ intake forms (docs/environment.md): repository variables,
+          # since both are public once built. Unset, the pages build without forms.
+          PUBLIC_INTAKE_SUBMIT_URL: ${{ vars.INTAKE_SUBMIT_URL }}
+          PUBLIC_HCAPTCHA_SITEKEY: ${{ vars.HCAPTCHA_SITEKEY }}
+        run: |
+          # Chosen in shell rather than with nested ||/&& expressions, which silently
+          # fall through to the wrong source whenever a secret is empty.
+          case "${CMS_SOURCE}" in
+            production)
+              export CONTENT_RELAY_URL="${PROD_RELAY_URL}" CONTENT_RELAY_READ_KEY="${PROD_RELAY_KEY}" ;;
+            staging-relay)
+              export CONTENT_RELAY_URL="${STAGING_RELAY_URL}" CONTENT_RELAY_READ_KEY="${STAGING_RELAY_KEY}" ;;
+            staging-direct)
+              # The CMS itself: no read key, access is controlled by Tailscale.
+              export CONTENT_RELAY_URL="${CMS_URL%/}/api" CONTENT_RELAY_READ_KEY="" ;;
+            *)
+              echo "::error::Unknown cms_source '${CMS_SOURCE}'"; exit 1 ;;
+          esac
+          if [[ -z "${CONTENT_RELAY_URL}" || "${CONTENT_RELAY_URL}" == "/api" ]]; then
+            echo "::error::No URL configured for content source '${CMS_SOURCE}' — check the staging environment secrets."
+            exit 1
+          fi
+          npm run build
+
+      - name: Deploy to Cloudflare Workers (staging)
+        if: steps.config.outputs.deploy_target == 'cloudflare'
+        # Uses the adapter-generated dist/server/wrangler.json which has the correct
+        # entry point (dist/server/entry.mjs) and asset paths (dist/client/).
+        #
+        # `npx wrangler`, NOT a globally installed wrangler@4. That generated config
+        # is written by @cloudflare/vite-plugin, which pins its own wrangler — and it
+        # emits `legacy_env`, a field newer wrangler releases reject outright. A
+        # floating global install drifts away from the plugin and breaks the deploy
+        # (wrangler 4.131.1 did exactly that). Using the lockfile's wrangler keeps the
+        # two versions moving together under Dependabot.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config dist/server/wrangler.json --name ${{ vars.CF_DEPLOYMENT_WORKER }}
+
+      - name: Deploy to staging server
+        if: steps.config.outputs.deploy_target == 'local-server'
+        # Atomic release swap over Tailscale SSH: the runner's tailnet tags authorise
+        # the deploy login, so there is no SSH key or known_hosts entry. The new release
+        # is built beside the live one, then a symlink is switched in one step, so the
+        # site is never half-updated and the web server never needs a restart. Old
+        # releases are kept for rollback.
+        #
+        # Server-side requirement: the web server must serve $DEPLOY_PATH/current,
+        # resolved per request (mount $DEPLOY_PATH, not the symlink itself).
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SHA: ${{ steps.build-info.outputs.sha }}
+        run: |
+          RELEASE="${DEPLOY_PATH}/releases/$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"
+
+          DEPLOY_TARGET_HOST="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh_run() { ssh $SSH_OPTS "${DEPLOY_TARGET_HOST}" "$@"; }
+
+          for i in 1 2 3; do
+            if ssh_run "mkdir -p '${DEPLOY_PATH}/releases'" \
+              && rsync -a --delete --link-dest="${DEPLOY_PATH}/current/" \
+                   -e "ssh $SSH_OPTS" --rsync-path="mkdir -p '${RELEASE}' && rsync" \
+                   dist/client/ "${DEPLOY_TARGET_HOST}:${RELEASE}/"; then
+              break
+            fi
+            echo "Upload attempt $i failed"
+            if [[ $i -eq 3 ]]; then echo "::error::Upload failed after 3 attempts"; exit 1; fi
+            sleep 10
+          done
+
+          # Switch `current` atomically, then keep only the 3 newest releases. The link
+          # is relative (releases/<name>), so it resolves wherever the web server
+          # mounts $DEPLOY_PATH, not only at the host path.
+          ssh_run "ln -sfn 'releases/${RELEASE##*/}' '${DEPLOY_PATH}/current.tmp' \
+            && mv -Tf '${DEPLOY_PATH}/current.tmp' '${DEPLOY_PATH}/current' \
+            && ls -1dt '${DEPLOY_PATH}'/releases/*/ | tail -n +4 | xargs -r rm -rf"
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.build-info.outputs.version }}
+        run: |
+          {
+            echo ""
+            echo "**Deployed** ${VERSION} (build ${{ github.run_id }})"
+          } >> "$GITHUB_STEP_SUMMARY"

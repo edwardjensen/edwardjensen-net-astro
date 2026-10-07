@@ -1,0 +1,60 @@
+name: Tear Down Cloudflare Staging
+
+# Nightly, delete the Cloudflare staging worker so a `deploy_target=cloudflare`
+# staging build stops being served at its workers.dev URL. It is recreated by the
+# next deploy-staging.yml run that targets cloudflare, so this is safe to run when
+# nothing is deployed (a missing worker counts as success).
+#
+# The staging worker has no custom domain (wrangler.jsonc), so deleting it loses
+# nothing that a deploy doesn't restore. It runs in the staging environment, whose
+# Cloudflare token is scoped to the staging worker, and refuses any worker name
+# that isn't a -staging name, so it can never reach production.
+
+permissions:
+  contents: read
+
+concurrency:
+  # Share deploy-staging.yml's group: never delete the worker mid-deploy.
+  group: deploy-staging
+  cancel-in-progress: false
+
+on:
+  schedule:
+    # 09:00 UTC daily (early morning US Central).
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  teardown:
+    name: Delete Cloudflare staging worker
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Delete worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER: ${{ vars.CF_DEPLOYMENT_WORKER }}
+        run: |
+          if [[ -z "${WORKER}" || "${WORKER}" != *-staging ]]; then
+            echo "::error::Refusing to delete '${WORKER}': not a -staging worker name."
+            exit 1
+          fi
+
+          # force=true also removes the worker's bindings, which the next deploy recreates.
+          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" -X DELETE \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER}?force=true")
+
+          case "${HTTP_STATUS}" in
+            200)
+              echo "Deleted ${WORKER}."
+              echo "Deleted Cloudflare staging worker \`${WORKER}\`." >> "$GITHUB_STEP_SUMMARY" ;;
+            404)
+              echo "${WORKER} is not deployed; nothing to do."
+              echo "Cloudflare staging worker \`${WORKER}\` was not deployed." >> "$GITHUB_STEP_SUMMARY" ;;
+            *)
+              echo "::error::Cloudflare API returned HTTP ${HTTP_STATUS}"
+              jq -c '.errors // .' response.json || cat response.json
+              exit 1 ;;
+          esac

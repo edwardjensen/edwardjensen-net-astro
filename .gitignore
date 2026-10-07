@@ -15,6 +15,7 @@ dist/
 .env.*
 !.env.example
 .dev.vars
+docs/github-secrets.txt
 
 # CI-generated files (written by GitHub Actions workflows before npm run build)
 # src/data/buildinfo.ts is committed as a local dev fallback; CI overwrites it.

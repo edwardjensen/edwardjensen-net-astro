@@ -36,9 +36,21 @@ Runs on every pull request to `main`:
 3. **Accessibility** — starts preview server, runs pa11y against test URLs
 4. **PR status** — required check for merge gate
 
-### Staging Deployment (`deploy-staging-direct.yml`)
+### Staging Deployment (`deploy-staging.yml`)
 
-Triggers on push to `main`. Builds and deploys to a staging Cloudflare Worker.
+The only staging workflow. Triggers: push to `main`, manual dispatch, and CMS `repository_dispatch` (`staging_cms_publish`, `staging_cms_photo_publish`). One job, so the deploy uses the same checkout and lockfile wrangler that built the site.
+
+| Choice | Options |
+|--------|---------|
+| Site code | `main`, `latest-tag` (highest `v*` tag) |
+| Content source | `production` (production relay), `staging-relay` (staging relay — how relay changes are tested), `staging-direct` (staging CMS over Tailscale; no relay, so no event pages) |
+| Deploy target | `local-server`, `cloudflare` |
+
+Defaults: push to `main` → main + production + local-server; `staging_cms_publish` → latest-tag + staging-relay + local-server; `staging_cms_photo_publish` → latest-tag + staging-relay + local-server; a manual run starts at main + production + local-server. `staging-relay` dispatches run the relay freshness gate first. The generated site title records the code version and content source, e.g. `Edward Jensen [STAGING · v14.2.0 · staging-relay]`.
+
+**Server deploys** go over Tailscale SSH. The runner joins the tailnet through Tailscale workload identity federation (GitHub OIDC, so the job needs `id-token: write`) with `tag:ci` plus the staging deploy group's tag, and those tags are what authorise its dedicated deploy login: there is no SSH key or `known_hosts` entry. A `Preflight SSH` step checks the login before anything is uploaded, comparing rather than printing it because the logs are public. The deploy login has no `sudo`. The new release is rsynced into `releases/<timestamp>-<sha>/` (hard-linked against `current`, so unchanged files cost nothing), `current` is switched with an atomic swap of a relative symlink (`releases/<name>`, so it resolves wherever the web server mounts the directory), and the newest 3 releases are kept. The web server must serve `current` resolved per request, so mount the deploy directory (not the symlink) and point the document root at `current`; it is never restarted. To roll back, repoint `current` at an earlier release.
+
+**Cloudflare staging is torn down nightly** (`teardown-staging-cloudflare.yml`, 09:00 UTC, or run it manually). It deletes the staging worker through the Cloudflare API, so a `deploy_target=cloudflare` build stops being served at its `workers.dev` URL. The next cloudflare-targeted run recreates it, and a worker that isn't deployed counts as success. It runs in the staging environment (the token is scoped to the staging worker), refuses any `CF_DEPLOYMENT_WORKER` that doesn't end in `-staging`, and shares `deploy-staging.yml`'s concurrency group so it never deletes mid-deploy.
 
 ### Production Deployment (`deploy-prod-site.yml`)
 
@@ -49,9 +61,9 @@ Triggers on version tag push (`v*.*.*`) or manual dispatch:
 3. **Deploy** — upload to production Cloudflare Worker
 4. **Release** — create GitHub Release
 
-### CMS Republish (`republish-prod.yml`, `republish-staging.yml`)
+### CMS Republish (`republish-prod.yml`)
 
-Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). `republish-prod.yml` checks out the latest production tag and redeploys to production; `republish-staging.yml` builds `main` directly (no tag checkout) and redeploys to staging. Both poll the content relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate described in `CLAUDE.md`.
+Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). Checks out the latest production tag and redeploys to production. Staging republishes are handled by `deploy-staging.yml`. Both run `.github/scripts/wait-for-relay.sh` to poll the relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate in `CLAUDE.md`.
 
 ### Worker Deployments
 
@@ -59,41 +71,48 @@ Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload 
 
 ## GitHub Secrets & Variables
 
-### Repository Variables
+**Variable or secret?** A value is a **variable** only if it is already public: served in the built site or committed to this repo. This repository is public, so its Actions logs are too; variables print in full there, secrets are masked. Everything else is a **secret**.
 
-| Variable | Description |
-|----------|-------------|
-| `NODE_VERSION` | Node.js version for CI (e.g., `26.9.0`) |
+**Precedence.** An environment value overrides a repository value of the same name. Values used by both environments live once at repository level; only what genuinely differs per environment is set on the environment.
 
-`INTAKE_SUBMIT_URL` and `HCAPTCHA_SITEKEY` (listed under each environment below) are set per environment, because the PR checks run in the `production` environment and staging builds use the `staging` one. They are optional: a build without them is fine, it just has no event forms. Both values are public once built (they are in the page's HTML, and in the build artifact), but they are kept as secrets so they stay out of this public repository's settings and are masked in workflow logs. The workflows read `secrets.NAME || vars.NAME`, so a variable of the same name also works; a secret wins.
+Rotation procedures for the credentials below (and for those the CMS owns) live in the CMS repository's documentation, not here.
 
-### Repository Secrets
+### Repository
 
-_(No repository-level secrets currently required for builds — all build secrets are in environments.)_
+| Name | Kind | Description |
+|------|------|-------------|
+| `NODE_VERSION` | Variable | Node.js version for CI (e.g. `26.9.0`) |
+| `TIMEZONE` | Variable | Time zone for the build date in the footer |
+| `CONTENT_RELAY_URL` | Variable | Production content relay base URL (`https://contentrelay.edwardjensen.net`) |
+| `INTAKE_SUBMIT_URL` | Variable | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional: without it the event pages have no form |
+| `HCAPTCHA_SITEKEY` | Variable | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional, as above |
+| `CONTENT_RELAY_READ_KEYS` | Secret | Read key for the production relay (this repo's own key; the relay accepts several) |
+| `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_CLIENT_SECRET` | Secret | Tailscale OAuth client (`tag:ci`) used by the hi-redirector only |
+| `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
 
 ### Environment: Production
 
-| Secret | Description |
-|--------|-------------|
-| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL` (see above). Optional |
-| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token for Worker deployment |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-| `CF_DEPLOYMENT_WORKER` | Production Cloudflare Worker name |
-| `CONTENT_RELAY_URL` | Content relay base URL (`https://contentrelay.edwardjensen.net`) |
-| `CONTENT_RELAY_READ_KEYS` | Read key for the content relay |
+| Name | Kind | Description |
+|------|------|-------------|
+| `CF_DEPLOYMENT_WORKER` | Variable | Production Cloudflare Worker name |
+| `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token for production deploys (site and hi-redirector) |
+| `CMS_URL` | Secret | Production CMS root (no `/api`), reached over Tailscale by the hi-redirector deploy |
+
+PR checks also run in this environment, so they build with production values.
 
 ### Environment: Staging
 
-| Secret | Description |
-|--------|-------------|
-| `INTAKE_SUBMIT_URL` | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional |
-| `HCAPTCHA_SITEKEY` | Passed to the build as `PUBLIC_HCAPTCHA_SITEKEY`. Optional |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-| `CF_STAGING_WORKER` | Staging Cloudflare Worker name |
-| `CONTENT_RELAY_URL` | Content relay base URL (same relay as production) |
-| `CONTENT_RELAY_READ_KEYS` | Read key for the content relay |
+| Name | Kind | Description |
+|------|------|-------------|
+| `CF_DEPLOYMENT_WORKER` | Variable | Staging Cloudflare Worker name (the `cloudflare` target) |
+| `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token scoped to the staging Worker |
+| `CMS_URL` | Secret | Staging CMS root (no `/api`); the `staging-direct` source reads `$CMS_URL/api` over Tailscale, with no key |
+| `STAGING_RELAY_URL` / `STAGING_RELAY_READ_KEYS` | Secret | Staging relay and this repo's read key for it (the `staging-relay` source) |
+| `TS_TAGS` | Variable | Tags the staging runner joins with, comma-separated (`tag:ci` plus the staging deploy group's tag). Must match the tag the deploy login is registered under |
+| `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` | Variable | Staging's Tailscale trust credential (workload identity federation), for the `staging-direct` source and the server target. Not the same thing as the repository *secret* of the same name |
+| `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Secret | Staging server (its MagicDNS name, never a LAN address, which would bypass Tailscale SSH), deploy login, and the directory holding `releases/` and `current`. Kept as secrets rather than variables so they are masked in the public logs |
+
+Staging inherits `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEYS` from the repository, so the `production` source reads the production relay.
 
 ## Cloudflare Worker Secrets
 
