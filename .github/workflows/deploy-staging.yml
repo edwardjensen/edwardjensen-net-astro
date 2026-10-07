@@ -297,12 +297,13 @@ jobs:
             && mv -Tf '${DEPLOY_PATH}/current.tmp' '${DEPLOY_PATH}/current' \
             && ls -1dt '${DEPLOY_PATH}'/releases/*/ | tail -n +4 | xargs -r rm -rf"
 
-          # Runtime files and their settings. SITE_UID/SITE_GID are the deploy login's own ids, read on the server.
+          # Runtime files and their settings. SITE_UID/SITE_GID are the deploy login's own ids, read on the server. Before `up`, any container left under the old directory-named Compose project is removed quietly (a no-op once that has happened), since the compose file now sets a fixed project name and an old container would otherwise keep answering on the same alias.
           # Copy just the runtime files. Syncing the directory (rsync -a src/ dest/) would also try to set the deploy directory's own times and permissions, which the deploy login may not change: the directory is root-owned and the login has access through an ACL.
           scp -q $SSH_OPTS "${RUNNER_TEMP}/staging-server/docker-compose.yml" "${RUNNER_TEMP}/staging-server/Dockerfile" "${RUNNER_TEMP}/staging-server/.dockerignore" "${DEPLOY_TARGET_HOST}:${DEPLOY_PATH}/"
           ssh_run "cd '${DEPLOY_PATH}' && mkdir -p .cache \
             && printf 'NODE_VERSION=%s\nWRANGLER_VERSION=%s\nSITE_UID=%s\nSITE_GID=%s\nSITE_ALIAS=%s\n' \
                  '${NODE_VERSION}' '${WRANGLER_VERSION}' \"\$(id -u)\" \"\$(id -g)\" '${SITE_ALIAS}' > .env \
+            && { docker compose -p \"\$(basename \"\$PWD\")\" down --remove-orphans >/dev/null 2>&1 || true; } \
             && docker compose up -d --build --remove-orphans \
             && docker compose restart"
 
