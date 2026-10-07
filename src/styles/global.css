@@ -5,6 +5,8 @@
 @import "@fontsource-variable/fraunces/full-italic.css";
 
 @import "tailwindcss";
+/* Server deployment files (deploy/) aren't site source; keep Tailwind's automatic detection from scanning them for class names. */
+@source not "../../deploy";
 @plugin "@tailwindcss/typography";
 
 @theme {
