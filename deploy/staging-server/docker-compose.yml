@@ -9,6 +9,9 @@
 #   WRANGLER_VERSION: the exact wrangler from the lockfile. The generated wrangler.json is written by @cloudflare/vite-plugin, and only that wrangler accepts it.
 #   SITE_UID / SITE_GID: the deploy login's ids. The deploy directory is readable only by that login, so the runtime runs as it.
 #   SITE_ALIAS: the name the reverse proxy reaches this container by on proxy-network. It comes from a secret so it stays out of this public repo.
+# A fixed project name. Without it Compose names the project, and so the container, after the deploy directory, which would print a server path into this public repo's Actions logs.
+name: edwardjensen-net-staging
+
 services:
   staging-site:
     build:

@@ -7,7 +7,7 @@ That means staging matches production's assets handling, trailing-slash redirect
 | File | Purpose |
 | --- | --- |
 | `Dockerfile` | Node plus the exact wrangler version the site was built with. The `wrangler.json` the build generates only works with that version. |
-| `docker-compose.yml` | Runs `wrangler dev` against the live release, on `proxy-network`, as the deploy login. |
+| `docker-compose.yml` | Runs `wrangler dev` against the live release, on `proxy-network`, as the deploy login. It sets a fixed Compose project name (`edwardjensen-net-staging`), so container names don't reveal the deploy directory in this public repo's logs. |
 | `.dockerignore` | Ignores everything, because the build context is the whole deploy directory and the Dockerfile copies nothing in. |
 
 ## How it gets there
