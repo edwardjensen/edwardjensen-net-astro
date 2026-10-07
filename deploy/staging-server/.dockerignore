@@ -1,0 +1,2 @@
+# The Dockerfile copies nothing in, and the build context is the whole staging deploy directory (releases, cache, .env), so send none of it to the Docker daemon.
+*
