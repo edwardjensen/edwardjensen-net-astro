@@ -267,8 +267,8 @@ See `docs/environment.md` for the full list of required secrets and variables.
   the tags in `vars.TS_TAGS`, and those tags authorise the deploy login: no SSH key, no `sudo`.
   Host, login and path stay **secrets** so they are masked in this public repo's logs. Nothing about
   the target is hardcoded in the workflow: configuration goes in `vars.*` or `secrets.*`. Then rsync into
-  `releases/<timestamp>-<sha>/` (hard-linked against `current`), switch the `current` symlink, keep the
-  newest 3 releases for rollback. `current` is a relative link, and the web server serves it and is never restarted.
+  `releases/<timestamp>-<sha>/` (the whole `dist/`, hard-linked against `current`), switch the relative `current` symlink, keep the newest 3 releases for rollback.
+- **The staging server runs the real worker:** `deploy/staging-server/` (compose file + Dockerfile) runs the site's Cloudflare Worker in workerd via `wrangler dev`, pinned to the lockfile's wrangler, as the deploy login, on `proxy-network` under the alias in `secrets.LOCAL_STAGING_SERVICE_NAME`. Each server deploy copies those files from `main`, writes their `.env`, rebuilds/restarts the runtime and waits for it to answer. Keep it Workers-faithful: don't swap in a static file server, since SSR routes would need the worker.
 - **Cloudflare staging is temporary:** `teardown-staging-cloudflare.yml` deletes the staging worker nightly
   (09:00 UTC), so a `deploy_target=cloudflare` build is only served until then; the next such run recreates it.
   It only ever deletes a `-staging` worker name, in the staging environment.
