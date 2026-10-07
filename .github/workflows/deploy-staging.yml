@@ -153,7 +153,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ vars.NODE_VERSION }}
+          node-version-file: .node-version
           cache: npm
 
       - name: Install dependencies
@@ -266,13 +266,14 @@ jobs:
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           SITE_ALIAS: ${{ secrets.LOCAL_STAGING_SERVICE_NAME }}
-          NODE_VERSION: ${{ vars.NODE_VERSION }}
           SHA: ${{ steps.build-info.outputs.sha }}
         run: |
-          if [[ -z "${SITE_ALIAS}" || -z "${NODE_VERSION}" ]]; then
-            echo "::error::LOCAL_STAGING_SERVICE_NAME (staging secret) and NODE_VERSION (variable) must both be set."
+          if [[ -z "${SITE_ALIAS}" ]]; then
+            echo "::error::The LOCAL_STAGING_SERVICE_NAME staging secret must be set."
             exit 1
           fi
+          # The runtime image uses the same Node as the build: the checked-out .node-version.
+          NODE_VERSION="$(tr -d '[:space:]' < .node-version)"
           # The wrangler this build was made with: the generated wrangler.json only works with it.
           WRANGLER_VERSION="$(node -p "require('wrangler/package.json').version")"
           RELEASE="${DEPLOY_PATH}/releases/$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"

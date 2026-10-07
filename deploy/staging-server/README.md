@@ -28,7 +28,7 @@ The workflow writes these values. None of them is stored in this repo.
 
 | Variable | Source |
 | --- | --- |
-| `NODE_VERSION` | The repository's `NODE_VERSION` variable |
+| `NODE_VERSION` | The repo's `.node-version` file, the same Node the site was built with |
 | `WRANGLER_VERSION` | The wrangler version installed from the lockfile for the build being deployed |
 | `SITE_UID` / `SITE_GID` | The deploy login's own IDs, read on the server. The deploy directory is readable only by that login, so the runtime runs as it. |
 | `SITE_ALIAS` | The `LOCAL_STAGING_SERVICE_NAME` secret in the staging environment. This is the name the reverse proxy reaches the runtime by on `proxy-network`. |

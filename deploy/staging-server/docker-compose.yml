@@ -5,7 +5,7 @@
 # The deploy directory is mounted whole rather than mounting the `current` symlink, which Docker would resolve only once. wrangler reads the config at start, so the restart is what switches releases. The mount is read-write because wrangler writes a `.wrangler/` scratch directory next to the config; it lands inside that release and goes when the release is pruned.
 #
 # Values come from the .env file the workflow writes beside this file:
-#   NODE_VERSION: Node major, from the repo's NODE_VERSION variable.
+#   NODE_VERSION: the Node version in the repo's .node-version, the same one the site was built with.
 #   WRANGLER_VERSION: the exact wrangler from the lockfile. The generated wrangler.json is written by @cloudflare/vite-plugin, and only that wrangler accepts it.
 #   SITE_UID / SITE_GID: the deploy login's ids. The deploy directory is readable only by that login, so the runtime runs as it.
 #   SITE_ALIAS: the name the reverse proxy reaches this container by on proxy-network. It comes from a secret so it stays out of this public repo.

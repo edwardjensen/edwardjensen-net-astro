@@ -83,7 +83,6 @@ Rotation procedures for the credentials below (and for those the CMS owns) live 
 
 | Name | Kind | Description |
 |------|------|-------------|
-| `NODE_VERSION` | Variable | Node.js version for CI (e.g. `26.9.0`) |
 | `TIMEZONE` | Variable | Time zone for the build date in the footer |
 | `CONTENT_RELAY_URL` | Variable | Production content relay base URL (`https://contentrelay.edwardjensen.net`) |
 | `INTAKE_SUBMIT_URL` | Variable | Passed to the build as `PUBLIC_INTAKE_SUBMIT_URL`. Optional: without it the event pages have no form |

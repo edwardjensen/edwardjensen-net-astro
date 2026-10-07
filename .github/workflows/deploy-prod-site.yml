@@ -86,7 +86,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ vars.NODE_VERSION }}
+          node-version-file: .node-version
           cache: npm
 
       - name: Install dependencies
@@ -145,7 +145,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ vars.NODE_VERSION }}
+          node-version-file: .node-version
           cache: npm
 
       # Needed so `npx wrangler` below resolves the lockfile's wrangler rather
