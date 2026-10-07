@@ -270,6 +270,7 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - **Cloudflare staging is temporary:** `teardown-staging-cloudflare.yml` deletes the staging worker nightly
   (09:00 UTC), so a `deploy_target=cloudflare` build is only served until then; the next such run recreates it.
   It only ever deletes a `-staging` worker name, in the staging environment.
+- **Environment protection:** `production` accepts only `main` and `v*` tags, `staging` only `main`, and creating `v*` tags is limited to repo admins. Don't add `environment:` to a `pull_request` job: PR refs are rejected by those policies. Keep PR checks on repository-level values.
 - **No Tailscale OAuth secrets:** every workflow that joins the tailnet (staging deploys and the hi-redirector) uses workload identity federation: `vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE` / `vars.TS_TAGS` on its GitHub environment and `id-token: write` on the job. Don't reintroduce `oauth-secret:`. The hi-redirector only needs network access to the CMS, so its production tags carry no deploy group.
 - **Production:** push a version tag (`vX.Y.Z`)
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag

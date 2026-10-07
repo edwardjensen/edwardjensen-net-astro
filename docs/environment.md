@@ -90,6 +90,17 @@ Rotation procedures for the credentials below (and for those the CMS owns) live 
 | `CONTENT_RELAY_READ_KEYS` | Secret | Read key for the production relay (this repo's own key; the relay accepts several) |
 | `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare account ID |
 
+### Environment protection
+
+Each environment only accepts deployments from the refs meant to deploy there (deployment branch policies, set in the repository settings):
+
+| Environment | Allowed refs | Used by |
+|-------------|--------------|---------|
+| `production` | branch `main`, tags `v*` | `deploy-prod-site.yml` (tag push), `republish-prod.yml` and `deploy-hi-redirector.yml` (both run on `main`) |
+| `staging` | branch `main` | `deploy-staging.yml`, `teardown-staging-cloudflare.yml` |
+
+A job that references an environment from any other ref is rejected before it starts, so it never receives that environment's secrets or its Tailscale credential. That is why no `pull_request` job uses an environment. Creating `v*` tags is also restricted to repository admins by the release tag ruleset, so automation can't cut a production release.
+
 ### Environment: Production
 
 | Name | Kind | Description |
@@ -100,7 +111,7 @@ Rotation procedures for the credentials below (and for those the CMS owns) live 
 | `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` | Variable | Production's Tailscale trust credential (workload identity federation, GitHub OIDC), used by the hi-redirector deploy to reach the CMS. No OAuth secret |
 | `TS_TAGS` | Variable | Tags the hi-redirector runner joins with. It only needs network access to the CMS, not SSH, so no deploy group tag |
 
-PR checks also run in this environment, so they build with production values.
+PR checks don't use an environment: they build with the repository-level values (`CONTENT_RELAY_URL`, `CONTENT_RELAY_READ_KEYS`, `HCAPTCHA_SITEKEY`, `INTAKE_SUBMIT_URL`), which point at production.
 
 ### Environment: Staging
 
