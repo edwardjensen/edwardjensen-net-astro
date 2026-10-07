@@ -298,8 +298,8 @@ jobs:
             && ls -1dt '${DEPLOY_PATH}'/releases/*/ | tail -n +4 | xargs -r rm -rf"
 
           # Runtime files and their settings. SITE_UID/SITE_GID are the deploy login's own ids, read on the server.
-          # Copy just the two files. Syncing the directory (rsync -a src/ dest/) would also try to set the deploy directory's own times and permissions, which the deploy login may not change: the directory is root-owned and the login has access through an ACL.
-          scp -q $SSH_OPTS "${RUNNER_TEMP}/staging-server/docker-compose.yml" "${RUNNER_TEMP}/staging-server/Dockerfile" "${DEPLOY_TARGET_HOST}:${DEPLOY_PATH}/"
+          # Copy just the runtime files. Syncing the directory (rsync -a src/ dest/) would also try to set the deploy directory's own times and permissions, which the deploy login may not change: the directory is root-owned and the login has access through an ACL.
+          scp -q $SSH_OPTS "${RUNNER_TEMP}/staging-server/docker-compose.yml" "${RUNNER_TEMP}/staging-server/Dockerfile" "${RUNNER_TEMP}/staging-server/.dockerignore" "${DEPLOY_TARGET_HOST}:${DEPLOY_PATH}/"
           ssh_run "cd '${DEPLOY_PATH}' && mkdir -p .cache \
             && printf 'NODE_VERSION=%s\nWRANGLER_VERSION=%s\nSITE_UID=%s\nSITE_GID=%s\nSITE_ALIAS=%s\n' \
                  '${NODE_VERSION}' '${WRANGLER_VERSION}' \"\$(id -u)\" \"\$(id -g)\" '${SITE_ALIAS}' > .env \

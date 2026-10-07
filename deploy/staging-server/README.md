@@ -8,6 +8,7 @@ That means staging matches production's assets handling, trailing-slash redirect
 | --- | --- |
 | `Dockerfile` | Node plus the exact wrangler version the site was built with. The `wrangler.json` the build generates only works with that version. |
 | `docker-compose.yml` | Runs `wrangler dev` against the live release, on `proxy-network`, as the deploy login. |
+| `.dockerignore` | Ignores everything, because the build context is the whole deploy directory and the Dockerfile copies nothing in. |
 
 ## How it gets there
 
@@ -36,7 +37,8 @@ The workflow writes these values. None of them is stored in this repo.
 
 ```
 <deploy directory>/
-├── docker-compose.yml, Dockerfile, .env   copied and written by the workflow
+├── docker-compose.yml, Dockerfile,        copied and written by the workflow
+│   .dockerignore, .env
 ├── .cache/                                wrangler's home and local state
 ├── current -> releases/<newest>           relative link to the live release
 └── releases/<timestamp>-<sha>/            the newest 3 releases
