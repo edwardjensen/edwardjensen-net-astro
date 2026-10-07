@@ -1,0 +1,53 @@
+# Staging site server: the site's own Cloudflare Worker, run in workerd (Cloudflare's open-source Workers runtime) through `wrangler dev`, so staging behaves like production: the same entry point, assets binding, trailing-slash and 404 handling, and any route that opts into on-demand rendering (`export const prerender = false`) runs exactly as it would on Cloudflare.
+#
+# deploy-staging.yml copies this file and the Dockerfile into the staging deploy directory, writes the .env beside them, and rebuilds and restarts the service after every staging-server deploy. Each release holds the whole build (`server/` with the worker and its wrangler.json, `client/` with the assets) and `current` links to the live one.
+#
+# The deploy directory is mounted whole rather than mounting the `current` symlink, which Docker would resolve only once. wrangler reads the config at start, so the restart is what switches releases. The mount is read-write because wrangler writes a `.wrangler/` scratch directory next to the config; it lands inside that release and goes when the release is pruned.
+#
+# Values come from the .env file the workflow writes beside this file:
+#   NODE_VERSION: Node major, from the repo's NODE_VERSION variable.
+#   WRANGLER_VERSION: the exact wrangler from the lockfile. The generated wrangler.json is written by @cloudflare/vite-plugin, and only that wrangler accepts it.
+#   SITE_UID / SITE_GID: the deploy login's ids. The deploy directory is readable only by that login, so the runtime runs as it.
+#   SITE_ALIAS: the name the reverse proxy reaches this container by on proxy-network. It comes from a secret so it stays out of this public repo.
+services:
+  staging-site:
+    build:
+      context: .
+      args:
+        NODE_VERSION: ${NODE_VERSION:?}
+        WRANGLER_VERSION: ${WRANGLER_VERSION:?}
+    image: staging-site-runtime:node${NODE_VERSION:?}-wrangler${WRANGLER_VERSION:?}
+    user: "${SITE_UID:?}:${SITE_GID:?}"
+    working_dir: /srv/site/current/server
+    command:
+      - wrangler
+      - dev
+      - --config=/srv/site/current/server/wrangler.json
+      - --local
+      - --ip=0.0.0.0
+      - --port=80
+      - --persist-to=/cache/wrangler-state
+      - --show-interactive-dev-session=false
+      - --live-reload=false
+      - --log-level=warn
+    environment:
+      # Writable home for wrangler's logs and config.
+      HOME: /cache
+      WRANGLER_SEND_METRICS: "false"
+      CI: "true"
+    # Lets the non-root runtime listen on port 80, so the proxy target is unchanged.
+    sysctls:
+      - net.ipv4.ip_unprivileged_port_start=0
+    volumes:
+      - ./:/srv/site
+      - ./.cache:/cache
+    restart: unless-stopped
+    networks:
+      proxy-network:
+        aliases:
+          - "${SITE_ALIAS:?}"
+
+networks:
+  proxy-network:
+    external: true
+    name: proxy-network

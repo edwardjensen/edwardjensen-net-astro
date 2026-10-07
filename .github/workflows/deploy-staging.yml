@@ -134,6 +134,11 @@ jobs:
           UPDATED_AT: ${{ github.event.client_payload.updatedAt }}
         run: .github/scripts/wait-for-relay.sh "$COLLECTION" "$RELAY_VERSION" "$UPDATED_AT"
 
+      - name: Keep the staging server files from main
+        # deploy/staging-server/ (the runtime's compose file and Dockerfile) always comes from main, even when an older tag is built below, so the server setup never goes back in time.
+        if: steps.config.outputs.deploy_target == 'local-server'
+        run: cp -R deploy/staging-server "${RUNNER_TEMP}/staging-server"
+
       - name: Checkout latest production tag
         if: steps.config.outputs.site_code == 'latest-tag'
         run: |
@@ -255,18 +260,21 @@ jobs:
 
       - name: Deploy to staging server
         if: steps.config.outputs.deploy_target == 'local-server'
-        # Atomic release swap over Tailscale SSH: the runner's tailnet tags authorise
-        # the deploy login, so there is no SSH key or known_hosts entry. The new release
-        # is built beside the live one, then a symlink is switched in one step, so the
-        # site is never half-updated and the web server never needs a restart. Old
-        # releases are kept for rollback.
+        # Atomic release swap over Tailscale SSH: the runner's tailnet tags authorise the deploy login, so there is no SSH key or known_hosts entry. Each release is the whole build (server/ with the worker, client/ with its assets), uploaded beside the live one; `current` is then switched to it in one step and old releases are kept for rollback.
         #
-        # Server-side requirement: the web server must serve $DEPLOY_PATH/current,
-        # resolved per request (mount $DEPLOY_PATH, not the symlink itself).
+        # The site is served by deploy/staging-server: the worker itself, run in workerd through `wrangler dev` (see its docker-compose.yml). This step copies those files in, writes their .env, and rebuilds and restarts the runtime, because wrangler reads the release at start. It then waits for the site to answer, so a runtime that fails to start fails the deploy.
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SITE_ALIAS: ${{ secrets.LOCAL_STAGING_SERVICE_NAME }}
+          NODE_VERSION: ${{ vars.NODE_VERSION }}
           SHA: ${{ steps.build-info.outputs.sha }}
         run: |
+          if [[ -z "${SITE_ALIAS}" || -z "${NODE_VERSION}" ]]; then
+            echo "::error::LOCAL_STAGING_SERVICE_NAME (staging secret) and NODE_VERSION (variable) must both be set."
+            exit 1
+          fi
+          # The wrangler this build was made with: the generated wrangler.json only works with it.
+          WRANGLER_VERSION="$(node -p "require('wrangler/package.json').version")"
           RELEASE="${DEPLOY_PATH}/releases/$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"
 
           DEPLOY_TARGET_HOST="${DEPLOY_USER}@${DEPLOY_HOST}"
@@ -276,7 +284,7 @@ jobs:
             if ssh_run "mkdir -p '${DEPLOY_PATH}/releases'" \
               && rsync -a --delete --link-dest="${DEPLOY_PATH}/current/" \
                    -e "ssh $SSH_OPTS" --rsync-path="mkdir -p '${RELEASE}' && rsync" \
-                   dist/client/ "${DEPLOY_TARGET_HOST}:${RELEASE}/"; then
+                   dist/ "${DEPLOY_TARGET_HOST}:${RELEASE}/"; then
               break
             fi
             echo "Upload attempt $i failed"
@@ -284,12 +292,30 @@ jobs:
             sleep 10
           done
 
-          # Switch `current` atomically, then keep only the 3 newest releases. The link
-          # is relative (releases/<name>), so it resolves wherever the web server
-          # mounts $DEPLOY_PATH, not only at the host path.
+          # Switch `current` atomically, then keep only the 3 newest releases. The link is relative (releases/<name>), so it resolves inside the runtime's mount too.
           ssh_run "ln -sfn 'releases/${RELEASE##*/}' '${DEPLOY_PATH}/current.tmp' \
             && mv -Tf '${DEPLOY_PATH}/current.tmp' '${DEPLOY_PATH}/current' \
             && ls -1dt '${DEPLOY_PATH}'/releases/*/ | tail -n +4 | xargs -r rm -rf"
+
+          # Runtime files and their settings. SITE_UID/SITE_GID are the deploy login's own ids, read on the server.
+          rsync -a -e "ssh $SSH_OPTS" "${RUNNER_TEMP}/staging-server/" "${DEPLOY_TARGET_HOST}:${DEPLOY_PATH}/"
+          ssh_run "cd '${DEPLOY_PATH}' && mkdir -p .cache \
+            && printf 'NODE_VERSION=%s\nWRANGLER_VERSION=%s\nSITE_UID=%s\nSITE_GID=%s\nSITE_ALIAS=%s\n' \
+                 '${NODE_VERSION}' '${WRANGLER_VERSION}' \"\$(id -u)\" \"\$(id -g)\" '${SITE_ALIAS}' > .env \
+            && docker compose up -d --build --remove-orphans \
+            && docker compose restart"
+
+          # Wait for the restarted runtime to serve the new release.
+          for i in $(seq 1 30); do
+            if ssh_run "cd '${DEPLOY_PATH}' && docker compose exec -T staging-site node -e \"fetch('http://127.0.0.1:80/').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))\""; then
+              echo "Staging site is serving (after ~$((i * 2))s)."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The staging runtime did not start serving within 60s."
+          ssh_run "cd '${DEPLOY_PATH}' && docker compose ps && docker compose logs --tail 50"
+          exit 1
 
       - name: Summary
         env:
