@@ -287,8 +287,10 @@ jobs:
             sleep 10
           done
 
-          # Switch `current` atomically, then keep only the 3 newest releases.
-          ssh_run "ln -sfn '${RELEASE}' '${DEPLOY_PATH}/current.tmp' \
+          # Switch `current` atomically, then keep only the 3 newest releases. The link
+          # is relative (releases/<name>), so it resolves wherever the web server
+          # mounts $DEPLOY_PATH, not only at the host path.
+          ssh_run "ln -sfn 'releases/${RELEASE##*/}' '${DEPLOY_PATH}/current.tmp' \
             && mv -Tf '${DEPLOY_PATH}/current.tmp' '${DEPLOY_PATH}/current' \
             && ls -1dt '${DEPLOY_PATH}'/releases/*/ | tail -n +4 | xargs -r rm -rf"
 
