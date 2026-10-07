@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code_changed == 'true'
-    environment: production
+    # No environment on purpose: a pull_request job runs on refs/pull/N/merge, which the environments' deployment branch policies reject. Everything this job reads is repository-level.
 
     steps:
       - name: Checkout repository
