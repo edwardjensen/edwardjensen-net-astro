@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+.astro
+.wrangler
+logs
+contexts
+.claude
+.env
+.env.*
+!.env.example
+*.code-workspace
