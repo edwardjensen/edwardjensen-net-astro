@@ -151,7 +151,7 @@ ever does go stale:
 
 ### Dependency updates
 
-[Dependabot](https://github.com/edwardjensen/edwardjensen-net-astro/security/dependabot) runs weekly (Sundays) and opens grouped PRs for npm and GitHub Actions updates. Minor and patch updates can generally be merged directly. For major version bumps (e.g., Astro, Tailwind), review the upstream changelog before merging.
+Dependabot version updates are **paused** (there is no `.github/dependabot.yml`), so dependency bumps are done by hand. To bring them back, restore the config from git history (weekly, grouped PRs for npm and GitHub Actions). Dependabot PRs don't receive this repository's Actions secrets, so for their builds to pass, `CONTENT_RELAY_READ_KEYS` has to be added as a *Dependabot* secret as well. For major version bumps (e.g., Astro, Tailwind), review the upstream changelog before merging.
 
 ### Manually managed version pins
 
