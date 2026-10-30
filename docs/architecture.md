@@ -3,7 +3,7 @@
 ## Overview
 
 edwardjensen.net is a statically generated (SSG) Astro site. All content is fetched from the
-**Cloudflare KV content relay** at build time — never from Payload CMS directly — pre-rendered
+**Cloudflare KV content relay** at build time — production builds never read Payload CMS directly — pre-rendered
 to HTML, and deployed to Cloudflare Workers as static assets.
 
 `astro.config.mjs` sets `output: 'static'` with the Cloudflare adapter installed. The adapter
@@ -19,8 +19,10 @@ Interactive features (navigation, photo gallery modal) are handled by Preact isl
 The API client lives in `src/lib/payload.ts`. Key aspects:
 
 - **Auto-pagination:** Each collection fetcher loops through all pages (PAGE_LIMIT = 100 per request) until all documents are retrieved.
-- **Retry with backoff:** Failed fetches are retried up to 5 times with delays of 1s, 2s, 4s, 8s, 16s. A build fails loudly rather than silently rendering a site with missing content.
-- **Build-time caching:** A module-level `Map` ensures each collection is fetched only once per build, even if multiple pages reference the same data.
+- **Timeout and retry with backoff:** Each attempt is abandoned after 30s (`CONTENT_FETCH_TIMEOUT_MS`), and failed fetches are retried up to 5 times with delays of 1s, 2s, 4s, 8s, 16s. A build fails loudly rather than silently rendering a site with missing content.
+- **Empty-collection guard:** A required collection that comes back with no documents fails the build, since that is almost always the wrong source. `CONTENT_ALLOW_EMPTY=1` allows it (a fresh local CMS).
+- **Build-time caching:** A module-level `Map` of promises ensures each collection is fetched only once per build, even if multiple pages reference the same data. Under `astro dev` an entry expires after 5s so CMS edits show on a reload.
+- **Choosing the source:** An Astro mode (`npm run dev:production-relay`, `dev:staging-relay`, `dev:staging-direct`, `dev:local-cms`) picks which `/v2` source the client reads; `npm run check:source` validates a source. See `docs/environment.md`.
 - **Permalink helpers:** `postPath()`, `workingNotePath()`, `photoPath()`, `historicPostPath()` generate URL paths from document slugs and dates.
 - **Environment config:** `CONTENT_RELAY_URL` points to the relay base URL — the client appends `/v2` itself. `CONTENT_RELAY_READ_KEY` is sent as the `X-Read-Key` header on all requests.
 

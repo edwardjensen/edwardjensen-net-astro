@@ -22,6 +22,27 @@ npm run dev
 | `PUBLIC_INTAKE_SUBMIT_URL` | No | Where the event intake forms on `/hi/{tag}/` post: the intake service's submit URL (https; `http://localhost` is allowed for local development). Public, since it ends up in the built pages. Use the service's own platform address rather than a hostname behind a Cloudflare challenge, because a `fetch()` cannot answer one. Unset, the event pages build without forms |
 | `PUBLIC_HCAPTCHA_SITEKEY` | No | The hCaptcha sitekey for those forms (public by nature). The hCaptcha site must list the hostname of every page that shows a form. hCaptcha's published test sitekey works for local development. Unset, the event pages build without forms |
 | `CONTENT_RELAY_READ_KEY` | Yes | Read API key for the relay (`X-Read-Key` header). Required for all relay reads. Note the singular name — the Worker's own secret (`CONTENT_RELAY_READ_KEYS`, see below) supports a comma-separated list for rotation, but CI maps it to this singular env var for the build. |
+| `CONTENT_ALLOW_EMPTY` | No | Set to `1` to let a required collection come back empty. Without it, the build (and `npm run check:source`) fails when a source returns no documents for one, because that is almost always the wrong source. `.env.local-cms` sets it, since a fresh local CMS is empty. |
+| `CONTENT_FETCH_TIMEOUT_MS` | No | How long one fetch attempt may take before it is abandoned and retried. Default 30000. |
+
+### Choosing a content source
+
+The client reads any source that serves the `/v2` list contract: the content relay, or a CMS's own `/api/v2`. An Astro **mode** picks the source, so switching is a script name rather than an edit to `.env.local`. A mode loads `.env.<mode>` and then `.env.<mode>.local` on top of `.env` and `.env.local`, so the mode's values win. Variables already in the shell win over every file.
+
+| Script | Reads | Where its settings live |
+|--------|-------|-------------------------|
+| `npm run dev` | whatever `.env.local` says | `.env.local` (unchanged) |
+| `npm run dev:production-relay` | the production relay | `.env.production-relay` (committed). Your read key goes in `.env.production-relay.local`; without that file the key from `.env.local` is used |
+| `npm run dev:staging-relay` | the staging relay | URL and read key in `.env.staging-relay.local` |
+| `npm run dev:staging-direct` | a staging CMS's own `/api/v2` (no relay, no key) | URL in `.env.staging-direct.local` |
+| `npm run dev:local-cms` | a CMS on this machine at `http://localhost:3000/api` | `.env.local-cms` (committed) |
+
+Each `dev:*` script has a `build:*` twin for running `astro preview` against that source. The build and dev server print one line saying which host they read and which mode they ran in.
+
+- **Committed mode files hold public values only.** The production relay's URL is public; the others are left blank, and their `.local` files are git-ignored. Never put a staging URL or any key in a committed file.
+- **A mode file that leaves `CONTENT_RELAY_READ_KEY=` blank on purpose** keeps the production key in `.env.local` from being sent to a different host.
+- **`--mode` changes only `import.meta.env.MODE`.** `astro build --mode staging-relay` is still an optimized production build (`import.meta.env.PROD` is true), so code must not branch on `MODE === "production"`.
+- **Check a source before building:** `npm run check:source` reads every collection from the configured source and fails with a list of problems (unreachable, key refused, empty, drafts, missing fields). Add `-- --mode staging-relay` to check a mode. It runs in PR checks before the build.
 
 ## CI/CD Pipelines
 
