@@ -159,7 +159,7 @@ Two version pins are **not** managed by Dependabot and must be updated manually:
 
 | Pin | Location | How to update |
 |-----|----------|---------------|
-| **Node.js runtime** | `.node-version` file (the only pin: CI and the staging runtime read it) | Update `.node-version` to the exact new version (e.g., `26.9.0`). For a new major, also raise `engines.node` in `package.json`; a PR-checks step fails if their majors disagree. |
+| **Node.js runtime** | `.node-version` file (the only pin: CI and the staging runtime read it) | Update `.node-version` to the exact new version (e.g., `26.13.0`). For a new major, also raise `engines.node` in `package.json`; a PR-checks step fails if their majors disagree. |
 | **Cloudflare compatibility date** | `wrangler.jsonc` → `"compatibility_date"` | Update to a recent date (e.g., today's date) when adopting new Workers runtime APIs. See [Cloudflare compatibility dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/). |
 
 ### `@astrojs/cloudflare` and `wrangler` — review before merging
