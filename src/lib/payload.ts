@@ -4,10 +4,14 @@
  * Fetches all content at build time from the Cloudflare KV relay worker.
  * Base URL is set via CONTENT_RELAY_URL env var (no trailing slash, no /v2).
  * Read access is authenticated via CONTENT_RELAY_READ_KEY env var (X-Read-Key header).
+ * The same client reads any source that serves the /v2 contract (the relay, or a CMS's own
+ * /api/v2): choose it with an Astro mode (docs/environment.md).
  *
  * Each exported function returns all documents (auto-paginates).
  * A missing optional collection (see getHiEvents) yields an empty list instead of an error.
- * Results are cached in-memory for the duration of the build.
+ * A required collection that comes back empty fails the build (CONTENT_ALLOW_EMPTY=1 allows it).
+ * Results are cached in-memory for the duration of the build; under `astro dev` the cache
+ * expires after a few seconds so edits in the CMS show on the next reload.
  */
 
 import type {
@@ -28,6 +32,14 @@ const PAGE_LIMIT = 100;
 const MAX_FETCH_RETRIES = 5;
 const FETCH_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000];
 
+// Each attempt gives up after this long, so a hung connection is retried instead of stalling the
+// build. CONTENT_FETCH_TIMEOUT_MS overrides it (import.meta.env values are always strings).
+const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
+
+// Under `astro dev` a cached collection is reused for this long, so edits show on a reload
+// while the several calls that make up one page render still share a single fetch.
+const DEV_CACHE_TTL_MS = 5_000;
+
 /** The relay answered 404 for a collection that was fetched as optional. */
 export class RelayNotFoundError extends Error {
   constructor(endpoint: string) {
@@ -41,10 +53,37 @@ function getBaseUrl(): string {
   if (!url) {
     throw new Error(
       "CONTENT_RELAY_URL environment variable is not set. " +
-        "Set it in .env.local for local development."
+        "Set it in .env.local for local development, or run a content-source mode " +
+        "(for example npm run dev:production-relay, see docs/environment.md)."
     );
   }
   return url.replace(/\/$/, "") + "/v2";
+}
+
+function getFetchTimeoutMs(): number {
+  const parsed = Number(import.meta.env.CONTENT_FETCH_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FETCH_TIMEOUT_MS;
+}
+
+function allowEmpty(): boolean {
+  return import.meta.env.CONTENT_ALLOW_EMPTY === "1";
+}
+
+let _sourceLogged = false;
+
+/** Say once which source this build reads, so a wrong mode is visible in the log. */
+function logSource(baseUrl: string, hasKey: boolean): void {
+  if (_sourceLogged) return;
+  _sourceLogged = true;
+  let host = baseUrl;
+  try {
+    host = new URL(baseUrl).host;
+  } catch {
+    // Not a URL: show it as given, the fetch will fail with a clearer message.
+  }
+  console.info(
+    `[payload] Content source: ${host} (mode ${import.meta.env.MODE}, read key ${hasKey ? "set" : "not set"})`
+  );
 }
 
 function getReadKey(): string | undefined {
@@ -64,6 +103,7 @@ async function fetchPage<T>(
 ): Promise<PayloadListResponse<T>> {
   const baseUrl = getBaseUrl();
   const readKey = getReadKey();
+  logSource(baseUrl, Boolean(readKey));
   const url = `${baseUrl}/${endpoint}?page=${page}&limit=${PAGE_LIMIT}`;
 
   const headers: Record<string, string> = {
@@ -77,7 +117,10 @@ async function fetchPage<T>(
 
   for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++) {
     try {
-      const response = await fetch(url, { headers });
+      const response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(getFetchTimeoutMs()),
+      });
 
       if (response.ok) {
         return response.json() as Promise<PayloadListResponse<T>>;
@@ -127,14 +170,12 @@ async function fetchAll<T>(endpoint: string, optional = false): Promise<T[]> {
   return allDocs;
 }
 
-// Module-level cache — persists for the entire build process.
-// Keyed by collection name.
-const _cache = new Map<string, unknown[]>();
+// Module-level cache of in-flight and finished fetches, keyed by collection name. A build keeps
+// an entry for the whole process; `astro dev` drops it after DEV_CACHE_TTL_MS. Caching the
+// promise means concurrent callers share one fetch, and a failure is not kept.
+const _cache = new Map<string, { docs: Promise<unknown[]>; fetchedAt: number }>();
 
-async function getCollection<T>(endpoint: string, optional = false): Promise<T[]> {
-  if (_cache.has(endpoint)) {
-    return _cache.get(endpoint) as T[];
-  }
+async function loadCollection<T>(endpoint: string, optional: boolean): Promise<T[]> {
   let docs: T[];
   try {
     docs = await fetchAll<T>(endpoint, optional);
@@ -143,9 +184,29 @@ async function getCollection<T>(endpoint: string, optional = false): Promise<T[]
     console.warn(
       `[payload] ${err.message}; building without it. It appears once the CMS pushes it.`
     );
-    docs = [];
+    return [];
   }
-  _cache.set(endpoint, docs);
+  // A reachable source with nothing in a required collection is almost always the wrong source
+  // (a fresh CMS, or a wrong URL), and would build a site with no content and no error.
+  if (docs.length === 0 && !optional && !allowEmpty()) {
+    throw new Error(
+      `The content source returned no documents for '${endpoint}'. ` +
+        "Check CONTENT_RELAY_URL, or set CONTENT_ALLOW_EMPTY=1 for a CMS that is meant to be empty."
+    );
+  }
+  return docs;
+}
+
+async function getCollection<T>(endpoint: string, optional = false): Promise<T[]> {
+  const cached = _cache.get(endpoint);
+  if (cached && !(import.meta.env.DEV && Date.now() - cached.fetchedAt > DEV_CACHE_TTL_MS)) {
+    return cached.docs as Promise<T[]>;
+  }
+  const docs = loadCollection<T>(endpoint, optional);
+  _cache.set(endpoint, { docs, fetchedAt: Date.now() });
+  docs.catch(() => {
+    if (_cache.get(endpoint)?.docs === docs) _cache.delete(endpoint);
+  });
   return docs;
 }
 

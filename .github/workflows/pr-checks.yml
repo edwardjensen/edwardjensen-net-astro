@@ -96,6 +96,14 @@ jobs:
           } as const;
           HEREDOC
 
+      - name: Check content source
+        # Fails fast, with a list of what is wrong, if the relay is unreachable, refuses the key or
+        # serves content in a shape the site does not expect (scripts/check-content-source.js).
+        env:
+          CONTENT_RELAY_URL: ${{ vars.CONTENT_RELAY_URL }}
+          CONTENT_RELAY_READ_KEY: ${{ secrets.CONTENT_RELAY_READ_KEYS }}
+        run: npm run check:source
+
       - name: Build site
         env:
           CONTENT_RELAY_URL: ${{ vars.CONTENT_RELAY_URL }}
