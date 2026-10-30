@@ -69,3 +69,7 @@ Then open <http://localhost:8787/> once the log says the build is current, and `
 ## Why `NODE_OPTIONS=--dns-result-order=ipv4first`
 
 Astro's Cloudflare prerender starts a server on `localhost` and then connects to it. Where `localhost` resolves to `::1` first and IPv6 loopback doesn't work (Docker Desktop on a Mac did this), the build dies with `ECONNREFUSED`. The image sets the option so IPv4 comes first everywhere.
+
+## Why `ca-certificates` is installed
+
+Astro's prerender runs inside workerd, and workerd verifies TLS against the system's certificate bundle, which the `-slim` base image does not include. A build that fetches the content relay over HTTPS then fails every fetch with `internal error`. (The builder used to read the CMS over plain HTTP inside the stack, so nothing needed a bundle until it moved to the relay.)

@@ -3,6 +3,10 @@ ARG NODE_VERSION
 FROM node:${NODE_VERSION}-slim
 ARG GIT_SHA=unknown
 ENV SITE_SHA=${GIT_SHA} NODE_ENV=development NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false ASTRO_TELEMETRY_DISABLED=1
+# workerd verifies TLS against the system's certificate bundle, which the -slim image does not carry. Without it the prerender server, which runs in workerd, fails every HTTPS fetch of the content relay with "internal error".
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
