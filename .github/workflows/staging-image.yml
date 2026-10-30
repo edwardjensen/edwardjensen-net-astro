@@ -2,7 +2,7 @@ name: Staging Image
 
 # Builds the staging builder-and-server image (deploy/staging-image/) that the CMS's staging stack on as2 runs, and pushes it to GHCR as `edwardjensen-net-astro-staging:main` (plus `:<sha7>`) on every merge to main that changes the site. A pull request that changes the image's inputs builds it without pushing. as2's Doco-CD follows `:main`, so staging always serves the latest main.
 #
-# This is separate from deploy-staging.yml, which still deploys to the old staging server until that is retired.
+# This is the only staging build: the GitHub-driven staging deploy (deploy-staging.yml, over Tailscale SSH) was retired on 2026-10-30.
 
 on:
   push:

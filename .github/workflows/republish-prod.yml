@@ -28,7 +28,7 @@ jobs:
           ref: main
 
       - name: Wait for relay content to reflect this publish
-        # Shared with deploy-staging.yml; see the script for why it polls the list
+        # See the script for why it polls the list
         # endpoint and why it fails rather than warns on timeout. Runs after the
         # main checkout (and before the tag checkout) so the script is present.
         #

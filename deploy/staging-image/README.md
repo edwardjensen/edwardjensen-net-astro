@@ -1,6 +1,6 @@
 # Staging builder-and-server image
 
-One image that builds the staging site from the staging CMS and serves it, for the CMS's staging stack on the application server. It replaces the GitHub-runner build and SSH upload of `deploy-staging.yml`'s `local-server` target for staging, which stays until the old server is retired.
+One image that builds the staging site from the staging CMS and serves it, for the CMS's staging stack on the application server. It replaced the GitHub-runner build and SSH upload that used to deploy staging (`deploy-staging.yml`, retired on 2026-10-30).
 
 It holds the site's source at the commit it was built from, its dependencies (including the lockfile's exact wrangler, and with it workerd) and `supervisor.mjs`. The site is served the same way as before: the site's own Cloudflare Worker, run in workerd by `wrangler dev --local`, so staging matches production's assets handling, redirects and 404 page.
 
