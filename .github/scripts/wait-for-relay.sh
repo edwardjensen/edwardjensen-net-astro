@@ -19,7 +19,7 @@
 # own clock, so there is no CMS/Cloudflare skew to account for. ">=" rather
 # than "==" so a second publish landing mid-wait satisfies this run too.
 #
-# Shared by republish-prod.yml and deploy-staging.yml. Lives outside the code
+# Used by republish-prod.yml. Lives outside the code
 # that gets built so it is available whichever tag the build later checks out.
 set -uo pipefail
 
