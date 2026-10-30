@@ -112,7 +112,7 @@ npm run dev
 The site deploys to **Cloudflare Workers** (not Pages) via GitHub Actions:
 
 - **PR checks** — build validation and accessibility testing as a required merge gate
-- **Staging** — the CMS's staging stack runs an image built from `main` (`staging-image.yml`) that builds the site from the staging CMS and serves it; see `deploy/staging-image/README.md`
+- **Staging** — the CMS's staging stack runs an image built from `main` (`staging-image.yml`) that builds the site from the staging relay (or production's, when selected) and serves it; see `deploy/staging-image/README.md`
 - **Production** — push a version tag (`vX.Y.Z`) deploys to production
 - **CMS republish** — webhook triggers rebuild from the latest production tag with fresh CMS content
 
