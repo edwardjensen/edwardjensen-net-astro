@@ -112,7 +112,7 @@ npm run dev
 The site deploys to **Cloudflare Workers** (not Pages) via GitHub Actions:
 
 - **PR checks** — build validation and accessibility testing as a required merge gate
-- **Staging** — one configurable workflow (`deploy-staging.yml`): pick the code (`main` / latest tag), the content source (production relay, staging relay, staging CMS) and the target (staging server / Cloudflare worker). Push to `main` deploys to the staging server
+- **Staging** — the CMS's staging stack runs an image built from `main` (`staging-image.yml`) that builds the site from the staging CMS and serves it; see `deploy/staging-image/README.md`
 - **Production** — push a version tag (`vX.Y.Z`) deploys to production
 - **CMS republish** — webhook triggers rebuild from the latest production tag with fresh CMS content
 
@@ -159,7 +159,7 @@ Two version pins are **not** managed by Dependabot and must be updated manually:
 
 | Pin | Location | How to update |
 |-----|----------|---------------|
-| **Node.js runtime** | `.node-version` file (the only pin: CI and the staging runtime read it) | Update `.node-version` to the exact new version (e.g., `26.9.0`). For a new major, also raise `engines.node` in `package.json`; a PR-checks step fails if their majors disagree. |
+| **Node.js runtime** | `.node-version` file (the only pin: CI and the staging runtime read it) | Update `.node-version` to the exact new version (e.g., `26.13.0`). For a new major, also raise `engines.node` in `package.json`; a PR-checks step fails if their majors disagree. |
 | **Cloudflare compatibility date** | `wrangler.jsonc` → `"compatibility_date"` | Update to a recent date (e.g., today's date) when adopting new Workers runtime APIs. See [Cloudflare compatibility dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/). |
 
 ### `@astrojs/cloudflare` and `wrangler` — review before merging

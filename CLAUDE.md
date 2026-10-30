@@ -69,8 +69,8 @@ already mirrored it.
 land it on `main` through a pull request. Never commit directly to `main`.**
 
 This is not a style preference — `main` is a deployment trigger. A push to `main` builds and
-deploys the site to the **staging** environment automatically
-(`deploy-staging.yml`: by default the staging server, see "Deployment"). Committing straight to `main` therefore ships, and skips the PR
+builds the **staging** image automatically
+(`staging-image.yml`; the CMS's staging stack follows it, see "Deployment"). Committing straight to `main` therefore ships, and skips the PR
 checks — the build validation and the pa11y accessibility gate, which is a required merge gate
 precisely so inaccessible markup can't reach the site.
 
@@ -106,7 +106,7 @@ This applies to routing, content collections, integrations, configuration, and d
 - **Deployment:** Cloudflare Workers (not Pages) via Wrangler v4
 - **CI/CD:** GitHub Actions — PR checks, staging on push to main, production on version tag
 - **Accessibility:** pa11y (WCAG 2.1 AA) enforced as a required PR gate
-- **Node.js:** 26.x (Active LTS from 2026-10-28). `.node-version` (an exact version, e.g. `26.9.0`) is the single source of truth: `fnm` reads it locally, every `actions/setup-node` step uses `node-version-file: .node-version`, and the staging server runtime image is built from it. There is **no `NODE_VERSION` repository variable**; don't reintroduce one. `engines.node` in `package.json` is a floor, and a `pr-checks.yml` step fails the PR unless its major matches `.node-version`. Patch bumps are deliberate: edit `.node-version`.
+- **Node.js:** 26.x (Active LTS from 2026-10-28). `.node-version` (an exact version, e.g. `26.13.0`) is the single source of truth: `fnm` reads it locally, every `actions/setup-node` step uses `node-version-file: .node-version`, and the staging server runtime image is built from it. There is **no `NODE_VERSION` repository variable**; don't reintroduce one. `engines.node` in `package.json` is a floor, and a `pr-checks.yml` step fails the PR unless its major matches `.node-version`. Patch bumps are deliberate: edit `.node-version`.
 - **Package manager:** **npm** (`package-lock.json`; CI runs `npm install`). The CMS repo uses
   pnpm — don't carry the habit across repos.
 
@@ -135,7 +135,7 @@ All content is fetched from the Cloudflare KV content relay. The API client in `
 
 The relay is populated by Payload CMS via a push hook on every content publish. Astro builds read from the relay — no VPN or direct CMS access is required.
 
-**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, `republish-prod.yml` — and `deploy-staging.yml` for `staging-relay` dispatches — run `.github/scripts/wait-for-relay.sh` (one shared copy, kept outside the built code so it exists whichever tag is checked out), which polls `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
+**Build freshness gate.** A CMS publish reaches this repo as a `repository_dispatch` carrying `client_payload.relayVersion` — the version token the relay returned for the push that accompanied that publish. Before building, `republish-prod.yml` runs `.github/scripts/wait-for-relay.sh` (kept outside the built code so it exists whichever tag is checked out), which polls `GET /v2/{collection}` (the *list* endpoint, i.e. the exact KV key the build reads — not `/v2/meta/`, which is a separate key with its own independent 60s edge cache) until the reported `version` is at least `relayVersion`.
 
 If that does not happen within 180s the step **fails the build** rather than proceeding. Building from unverified relay data is how stale content reached production before; the CMS already refuses to dispatch at all when its relay push fails, and this keeps that guarantee on this side. Re-run the workflow once the relay is healthy.
 
@@ -255,28 +255,9 @@ See `docs/environment.md` for the full list of required secrets and variables.
 
 ## Deployment
 
-- **Staging:** one workflow, `deploy-staging.yml`, for every staging operation. Each run has three
-  independent choices — **site code** (`main` | `latest-tag`), **content source** (`production` =
-  production relay | `staging-relay` = staging relay, the path production uses, so relay changes get
-  tested | `staging-direct` = the staging CMS itself over Tailscale; no relay, so no event pages) and
-  **deploy target** (`local-server` | `cloudflare`). Defaults by trigger (the `Resolve configuration`
-  step is the single place to change them): push to `main` → main + production + local-server;
-  `staging_cms_publish` dispatch → latest-tag + staging-relay + local-server;
-  `staging_cms_photo_publish` dispatch → latest-tag + staging-relay + local-server; a manual run starts at
-  main + production + local-server, with all three selectable.
-- **Staging server deploys** are an atomic release swap over Tailscale SSH. The runner joins through
-  workload identity federation (`vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE`, `id-token: write`) with
-  the tags in `vars.TS_TAGS`, and those tags authorise the deploy login: no SSH key, no `sudo`.
-  Host, login and path stay **secrets** so they are masked in this public repo's logs. Nothing about
-  the target is hardcoded in the workflow: configuration goes in `vars.*` or `secrets.*`. Then rsync into
-  `releases/<timestamp>-<sha>/` (the whole `dist/`, hard-linked against `current`), switch the relative `current` symlink, keep the newest 3 releases for rollback.
-- **The staging server runs the real worker:** `deploy/staging-server/` (compose file + Dockerfile) runs the site's Cloudflare Worker in workerd via `wrangler dev`, pinned to the lockfile's wrangler, as the deploy login, on `proxy-network` under the alias in `secrets.LOCAL_STAGING_SERVICE_NAME`. Each server deploy copies those files from `main`, writes their `.env`, rebuilds/restarts the runtime and waits for it to answer. Keep it Workers-faithful: don't swap in a static file server, since SSR routes would need the worker.
-- **The staging image (for the CMS's staging on as2):** `deploy/staging-image/` builds one image, `edwardjensen-net-astro-staging:main` (workflow `staging-image.yml`), that builds the site from the staging CMS over the stack's network and serves it with `wrangler dev` in workerd, like the server above. Its control port (never routed publicly) takes `POST /build`, and `?source=production` to preview against production's content. See its README. `deploy-staging.yml` and `deploy/staging-server/` stay until the old staging server is retired.
-- **Cloudflare staging is temporary:** `teardown-staging-cloudflare.yml` deletes the staging worker nightly
-  (09:00 UTC), so a `deploy_target=cloudflare` build is only served until then; the next such run recreates it.
-  It only ever deletes a `-staging` worker name, in the staging environment.
-- **Environment protection:** `production` accepts only `main` and `v*` tags, `staging` only `main`, and creating `v*` tags is limited to repo admins. Don't add `environment:` to a `pull_request` job: PR refs are rejected by those policies. Keep PR checks on repository-level values.
-- **No Tailscale OAuth secrets:** every workflow that joins the tailnet (staging deploys and the hi-redirector) uses workload identity federation: `vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE` / `vars.TS_TAGS` on its GitHub environment and `id-token: write` on the job. Don't reintroduce `oauth-secret:`. The hi-redirector only needs network access to the CMS, so its production tags carry no deploy group.
+- **Staging:** no GitHub workflow deploys it. `staging-image.yml` builds `deploy/staging-image/` into one image, `edwardjensen-net-astro-staging:main`, on every merge to `main` that changes the site, and the CMS's staging stack follows that tag. The image builds the site from the staging CMS over the stack's network and serves it with `wrangler dev` in workerd, so staging matches production's entry point, assets handling, trailing-slash redirects and 404 page. Its control port (never routed publicly) takes `POST /build`, and `?source=production` to preview against production's content. See its README. The earlier GitHub-driven staging (`deploy-staging.yml` over Tailscale SSH, `deploy/staging-server/`, the nightly Cloudflare teardown) was retired on 2026-10-30; don't reintroduce a staging deploy that needs a tailnet credential.
+- **Environment protection:** `production` accepts only `main` and `v*` tags, and creating `v*` tags is limited to repo admins. Don't add `environment:` to a `pull_request` job: PR refs are rejected by those policies. Keep PR checks on repository-level values.
+- **No Tailscale OAuth secrets:** the one workflow that joins the tailnet (the hi-redirector deploy) uses workload identity federation: `vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE` / `vars.TS_TAGS` on its GitHub environment and `id-token: write` on the job. Don't reintroduce `oauth-secret:`. The hi-redirector only needs network access to the CMS, so its production tags carry no deploy group.
 - **Production:** push a version tag (`vX.Y.Z`)
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag
 - Target is Cloudflare Workers with static assets (not Pages)
