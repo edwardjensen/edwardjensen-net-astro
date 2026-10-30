@@ -218,8 +218,12 @@ The brand color palette, typography, and component classes are defined in `src/s
 **This is a public repository** (see "This Repository Is Public" above). No credentials, API
 keys, or secrets may ever be committed.
 
-- Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`;
-  optionally `PUBLIC_INTAKE_SUBMIT_URL` and `PUBLIC_HCAPTCHA_SITEKEY` to render the event forms
+- Local development: `.env.local` (gitignored) — set `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEY`
+  for `npm run dev`. To read another source, use a content-source mode (`npm run dev:production-relay`,
+  `dev:staging-relay`, `dev:staging-direct`, `dev:local-cms`; each has a `build:` twin): the mode's
+  committed `.env.<mode>` holds public values only and the private ones go in the git-ignored
+  `.env.<mode>.local` (details in `docs/environment.md`). `npm run check:source` validates whichever
+  source is configured. Optionally `PUBLIC_INTAKE_SUBMIT_URL` and `PUBLIC_HCAPTCHA_SITEKEY` to render the event forms
   (hCaptcha publishes a test sitekey that works locally)
 - CI/CD: GitHub Actions secrets and variables. **A value is a variable only if it is already
   public** (served in the built site or committed here) — this repo's Actions logs are public, and

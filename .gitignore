@@ -14,6 +14,12 @@ dist/
 .env
 .env.*
 !.env.example
+# Content-source mode templates (docs/environment.md): URLs only, never keys. Keys go in the
+# matching .env.<mode>.local, which stays ignored.
+!.env.production-relay
+!.env.staging-relay
+!.env.staging-direct
+!.env.local-cms
 .dev.vars
 docs/github-secrets.txt
 

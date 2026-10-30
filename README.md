@@ -39,21 +39,25 @@ cloudflare-workers/
   stream-proxy/   # Cloudflare Stream embed proxy
 scripts/
   a11y-check.js             # Accessibility testing (pa11y)
+  check-content-source.js   # Validates the configured content source (npm run check:source)
   refresh-content-relay.js  # Manual relay repopulation (see Maintenance below)
 .github/workflows/  # CI/CD pipelines
 ```
 
 ## Content Architecture
 
-All content is managed in Payload CMS, but this site **never queries the CMS directly**. On
+All content is managed in Payload CMS, but **production builds never query the CMS directly**. On
 every publish the CMS pushes the affected collection into a Cloudflare KV content relay, and
 builds read from that relay. The client in `src/lib/payload.ts` appends `/v2` to
 `CONTENT_RELAY_URL`, authenticates with an `X-Read-Key` header, auto-paginates (100 per
-request), retries failed fetches with exponential backoff, and caches each collection for the
-duration of the build.
+request), gives up on a hung request after 30 seconds, retries failed fetches with exponential
+backoff, fails the build if a required collection comes back empty, and caches each collection for
+the duration of the build.
 
 Because the relay is public and key-authenticated, **no VPN or CMS access is needed to build
-this site** — locally or in CI.
+this site** — locally or in CI. The CMS's own `/api/v2` serves the same contract, so local
+development can also read a CMS directly: `npm run dev:local-cms` and the other `dev:*` scripts
+choose the source by Astro mode (see `docs/environment.md`).
 
 **Content types:** Blog posts, working notes, photography (with EXIF/location data), historic posts (legacy archive), and CMS-managed pages.
 
@@ -96,6 +100,8 @@ npm run dev
 | :--- | :--- |
 | `npm run dev` | Start dev server at `localhost:4321` |
 | `npm run build` | Build production site to `dist/` |
+| `npm run dev:production-relay`, `dev:staging-relay`, `dev:staging-direct`, `dev:local-cms` | Dev server reading that content source (`build:*` twins build against it); see `docs/environment.md` |
+| `npm run check:source` | Check that the configured content source is reachable and has the shape the site expects |
 | `npm run preview` | Preview built site locally |
 | `npm run a11y` | Run pa11y accessibility checks against local dev server |
 | `npm run a11y:report` | Generate full accessibility report (JSON) |
