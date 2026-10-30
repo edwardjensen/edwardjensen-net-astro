@@ -57,23 +57,11 @@ Runs on every pull request to `main`:
 3. **Accessibility** — starts preview server, runs pa11y against test URLs
 4. **PR status** — required check for merge gate
 
-### Staging Deployment (`deploy-staging.yml`)
+### Staging (`staging-image.yml`)
 
-The only staging workflow. Triggers: push to `main`, manual dispatch, and CMS `repository_dispatch` (`staging_cms_publish`, `staging_cms_photo_publish`). One job, so the deploy uses the same checkout and lockfile wrangler that built the site.
+No GitHub workflow deploys staging. `staging-image.yml` builds `deploy/staging-image/` into one image, `edwardjensen-net-astro-staging:main` (plus `:<sha7>`), on every merge to `main` that changes the site, and pushes it to GHCR. A pull request that changes the image's inputs builds it without pushing. The CMS's staging stack follows the `:main` tag. The image builds the site from the staging CMS and serves it, rebuilding whenever the CMS asks; its README covers the settings. The generated site title records the code version and content source.
 
-| Choice | Options |
-|--------|---------|
-| Site code | `main`, `latest-tag` (highest `v*` tag) |
-| Content source | `production` (production relay), `staging-relay` (staging relay — how relay changes are tested), `staging-direct` (staging CMS over Tailscale; no relay, so no event pages) |
-| Deploy target | `local-server`, `cloudflare` |
-
-Defaults: push to `main` → main + production + local-server; `staging_cms_publish` → latest-tag + staging-relay + local-server; `staging_cms_photo_publish` → latest-tag + staging-relay + local-server; a manual run starts at main + production + local-server. `staging-relay` dispatches run the relay freshness gate first. The generated site title records the code version and content source, e.g. `Edward Jensen [STAGING · v14.2.0 · staging-relay]`.
-
-**Server deploys** go over Tailscale SSH. The runner joins the tailnet through Tailscale workload identity federation (GitHub OIDC, so the job needs `id-token: write`) with `tag:ci` plus the staging deploy group's tag, and those tags are what authorise its dedicated deploy login: there is no SSH key or `known_hosts` entry. A `Preflight SSH` step checks the login before anything is uploaded, comparing rather than printing it because the logs are public. The deploy login has no `sudo`. Each release is the whole build (`server/` with the worker, `client/` with its assets), rsynced into `releases/<timestamp>-<sha>/` (hard-linked against `current`, so unchanged files cost nothing); `current` is switched with an atomic swap of a relative symlink (`releases/<name>`), and the newest 3 releases are kept. To roll back, repoint `current` at an earlier release and restart the runtime.
-
-**The staging server runs the real worker.** `deploy/staging-server/` holds a `docker-compose.yml` and `Dockerfile` that run the site's own Cloudflare Worker in workerd, Cloudflare's open-source Workers runtime, through `wrangler dev`. Staging therefore matches production's entry point, assets binding, trailing-slash redirects and 404 page, and any route that later opts into on-demand rendering (`prerender = false`) works without server changes. On every server deploy the workflow copies those files into the deploy directory (always from `main`, even when building an older tag), writes their `.env` (`NODE_VERSION`, the lockfile's exact `WRANGLER_VERSION`, the deploy login's uid/gid, and the proxy alias from `LOCAL_STAGING_SERVICE_NAME`), runs `docker compose up -d --build` and restarts the service, then fails the deploy unless the site answers within 60s. The image (Node plus that wrangler) is built on the server and only rebuilds when either version changes. The runtime runs as the deploy login, because the deploy directory is readable only by it, and listens on port 80 on `proxy-network` under the alias.
-
-**Cloudflare staging is torn down nightly** (`teardown-staging-cloudflare.yml`, 09:00 UTC, or run it manually). It deletes the staging worker through the Cloudflare API, so a `deploy_target=cloudflare` build stops being served at its `workers.dev` URL. The next cloudflare-targeted run recreates it, and a worker that isn't deployed counts as success. It runs in the staging environment (the token is scoped to the staging worker), refuses any `CF_DEPLOYMENT_WORKER` that doesn't end in `-staging`, and shares `deploy-staging.yml`'s concurrency group so it never deletes mid-deploy.
+The earlier GitHub-driven staging was retired on 2026-10-30: `deploy-staging.yml` (a build on a runner, then an upload over Tailscale SSH, with a choice of code, content source and target), the `deploy/staging-server/` runtime and the nightly Cloudflare teardown.
 
 ### Production Deployment (`deploy-prod-site.yml`)
 
@@ -86,7 +74,7 @@ Triggers on version tag push (`v*.*.*`) or manual dispatch:
 
 ### CMS Republish (`republish-prod.yml`)
 
-Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). Checks out the latest production tag and redeploys to production. Staging republishes are handled by `deploy-staging.yml`. Both run `.github/scripts/wait-for-relay.sh` to poll the relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate in `CLAUDE.md`.
+Triggers via manual dispatch or CMS webhook (`repository_dispatch` from Payload on publish). Checks out the latest production tag and redeploys to production. Staging rebuilds are handled by the staging image. This workflow runs `.github/scripts/wait-for-relay.sh` to poll the relay's list endpoint for `client_payload.relayVersion` before building — see the freshness gate in `CLAUDE.md`.
 
 ### Worker Deployments
 
@@ -118,7 +106,6 @@ Each environment only accepts deployments from the refs meant to deploy there (d
 | Environment | Allowed refs | Used by |
 |-------------|--------------|---------|
 | `production` | branch `main`, tags `v*` | `deploy-prod-site.yml` (tag push), `republish-prod.yml` and `deploy-hi-redirector.yml` (both run on `main`) |
-| `staging` | branch `main` | `deploy-staging.yml`, `teardown-staging-cloudflare.yml` |
 
 A job that references an environment from any other ref is rejected before it starts, so it never receives that environment's secrets or its Tailscale credential. That is why no `pull_request` job uses an environment. Creating `v*` tags is also restricted to repository admins by the release tag ruleset, so automation can't cut a production release.
 
@@ -134,20 +121,7 @@ A job that references an environment from any other ref is rejected before it st
 
 PR checks don't use an environment: they build with the repository-level values (`CONTENT_RELAY_URL`, `CONTENT_RELAY_READ_KEYS`, `HCAPTCHA_SITEKEY`, `INTAKE_SUBMIT_URL`), which point at production.
 
-### Environment: Staging
-
-| Name | Kind | Description |
-|------|------|-------------|
-| `CF_DEPLOYMENT_WORKER` | Variable | Staging Cloudflare Worker name (the `cloudflare` target) |
-| `CLOUDFLARE_API_TOKEN` | Secret | Cloudflare API token scoped to the staging Worker |
-| `CMS_URL` | Secret | Staging CMS root (no `/api`); the `staging-direct` source reads `$CMS_URL/api` over Tailscale, with no key |
-| `STAGING_RELAY_URL` / `STAGING_RELAY_READ_KEYS` | Secret | Staging relay and this repo's read key for it (the `staging-relay` source) |
-| `TS_TAGS` | Variable | Tags the staging runner joins with, comma-separated (`tag:ci` plus the staging deploy group's tag). Must match the tag the deploy login is registered under |
-| `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` | Variable | Staging's Tailscale trust credential (workload identity federation), for the `staging-direct` source and the server target. Not the same thing as the repository *secret* of the same name |
-| `LOCAL_STAGING_SERVICE_NAME` | Secret | The name the reverse proxy reaches the staging runtime by on `proxy-network`; written into the runtime's `.env` as its network alias. A secret so it stays out of this public repo |
-| `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` | Secret | Staging server (its MagicDNS name, never a LAN address, which would bypass Tailscale SSH), deploy login, and the directory holding `releases/` and `current`. Kept as secrets rather than variables so they are masked in the public logs |
-
-Staging inherits `CONTENT_RELAY_URL` and `CONTENT_RELAY_READ_KEYS` from the repository, so the `production` source reads the production relay.
+No workflow uses a `staging` environment any more, so its secrets and variables (the Cloudflare staging worker, the staging relay's read key, the Tailscale trust credential and the staging server's login) have no reader and can be deleted from the repository settings.
 
 ## Cloudflare Worker Secrets
 
