@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Staging viewer</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1b; --muted: #5c5c57; --line: #d5d5cf;
+    --accent: #1f5fbf; --ok: #1e7a3c; --warn: #9a5b00; --bad: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16160f; --panel: #20201a; --text: #ecece6; --muted: #a5a59d; --line: #3a3a32;
+      --accent: #7aa7f0; --ok: #62c283; --warn: #e0a64a; --bad: #f0857d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header, footer { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .5rem 1rem; background: var(--panel); }
+  header { border-bottom: 1px solid var(--line); }
+  footer { padding-right: 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  label { display: flex; align-items: center; gap: .4rem; color: var(--muted); }
+  select, button { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .6rem; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+  select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .spacer { flex: 1; }
+  #f-toggle { position: fixed; right: .75rem; bottom: .4rem; width: 1.75rem; height: 1.75rem; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--panel); line-height: 1; opacity: .75; }
+  #f-toggle:hover, #f-toggle:focus-visible { opacity: 1; }
+  .note { color: var(--muted); font-size: 12px; }
+  main { flex: 1; min-height: 0; position: relative; }
+  iframe { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
+  #progress { position: absolute; inset: 0; overflow: auto; padding: 1.5rem 1rem; }
+  .card { max-width: 40rem; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; }
+  h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
+  .why { color: var(--muted); margin: 0 0 1rem; }
+  ol { list-style: none; margin: 0 0 1rem; padding: 0; }
+  li { display: flex; gap: .6rem; padding: .2rem 0; color: var(--muted); }
+  li .mark { width: 1.2rem; text-align: center; }
+  li.done { color: var(--text); } li.done .mark { color: var(--ok); }
+  li.active { color: var(--text); font-weight: 600; } li.active .mark { color: var(--accent); }
+  .err { color: var(--bad); margin: 0 0 1rem; overflow-wrap: anywhere; }
+  details { margin-top: .5rem; }
+  pre { margin: .5rem 0 0; max-height: 16rem; overflow: auto; padding: .6rem; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: no-preference) { .spin { animation: pulse 1.4s ease-in-out infinite; } @keyframes pulse { 50% { opacity: .35; } } }
+</style>
+</head>
+<body>
+<header>
+  <label>Site code <select id="code"></select></label>
+  <label>CMS content <select id="source"></select></label>
+  <button id="rebuild" class="primary" type="button">Rebuild</button>
+</header>
+<main>
+  <iframe id="site" title="Staging site" hidden></iframe>
+  <section id="progress" hidden aria-live="polite">
+    <div class="card">
+      <h1 id="title">Rebuilding the staging site</h1>
+      <p id="why" class="why"></p>
+      <p id="err" class="err" hidden></p>
+      <ol id="phases"></ol>
+      <p id="elapsed" class="note"></p>
+      <button id="show" type="button" hidden>Show site</button>
+      <details id="logbox"><summary>Build output</summary><pre id="log"></pre></details>
+    </div>
+  </section>
+</main>
+<button id="f-toggle" type="button" aria-controls="footer" aria-expanded="false" aria-label="Show build status">●</button>
+<footer id="footer" role="status" aria-live="polite" hidden>
+  <span id="f-serving">Connecting…</span>
+  <span id="f-release"></span>
+  <span id="f-last"></span>
+  <span id="f-warn" class="warn"></span>
+  <span class="spacer"></span>
+  <span id="f-conn" class="note"></span>
+</footer>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const API = '/__staging/api/';
+  const PHASES = [
+    ['requested', 'Request received'],
+    ['waiting-for-relay', 'Waiting for the content relay'],
+    ['building', 'Building the site'],
+    ['publishing', 'Publishing the release'],
+    ['restarting', 'Restarting the server'],
+  ];
+  let pinned = false, status = null, dismissed = false, failed = null, startedAt = null, firstSnapshot = false, wasBusy = false, optionsFor = '';
+
+  // The page inside the frame, kept in this page's address so a reload or a finished rebuild returns to it.
+  const wanted = new URLSearchParams(location.search).get('path') || '/';
+  let path = /^\/(?!\/|__staging)/.test(wanted) ? wanted : '/';
+  const frame = $('site');
+  frame.addEventListener('load', () => {
+    try {
+      const { pathname, search, hash } = frame.contentWindow.location;
+      if (pathname.startsWith('/__staging')) return;
+      path = pathname + search + hash;
+      const u = new URL(location.href);
+      u.searchParams.set('path', path);
+      history.replaceState(null, '', u);
+    } catch { /* not same-origin; keep the last path */ }
+    borrowPage();
+  });
+  const loadFrame = () => { frame.src = path; };
+
+  // The tab shows the framed page's own title and which code and content are serving, and borrows its icon.
+  let pageTitle = 'Edward Jensen';
+  function renderTitle() {
+    const sv = status?.serving;
+    const code = sv ? (sv.code === 'release' ? `prod ${sv.label}` : `main ${sha7(sv.sha)}`) : '…';
+    const cms = sv ? sv.source : '…';
+    document.title = `${pageTitle} [STAGING · ${code} site, ${cms} CMS]`;
+  }
+  function borrowPage() {
+    try {
+      const doc = frame.contentDocument;
+      // The site's own title may already carry a staging tag; the viewer's replaces it.
+      pageTitle = doc.title.replace(/\s*\[STAGING[^\]]*\]\s*$/, '') || pageTitle;
+      const icon = doc.querySelector('link[rel~="icon"]');
+      if (icon) {
+        let mine = document.querySelector('link[rel~="icon"]');
+        if (!mine) document.head.append((mine = Object.assign(document.createElement('link'), { rel: 'icon' })));
+        mine.href = icon.href;
+        mine.type = icon.type;
+      }
+    } catch { /* not same-origin */ }
+    renderTitle();
+  }
+
+  const sha7 = (s) => (s || '').slice(0, 7);
+  const ago = (iso) => {
+    const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+    return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+  };
+  const describe = (t) => ({
+    cms: `CMS publish${t.collection ? `: ${t.collection}` : ''}${t.action ? ` (${t.action})` : ''}`,
+    selection: 'The selection changed',
+    viewer: 'Rebuild button',
+    manual: 'A manual rebuild request',
+    startup: 'The server started',
+    retry: 'Retrying a first build',
+  }[t.kind] || 'A rebuild request');
+
+  async function post(name, body) {
+    const r = await fetch(API + name, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    if (!r.ok) alert((await r.json().catch(() => ({}))).error || `Request failed (${r.status})`);
+  }
+
+  function renderControls() {
+    const busy = status.phase !== 'idle';
+    const sig = JSON.stringify([status.trees, status.sources]);
+    if (sig !== optionsFor) {
+      optionsFor = sig;
+      const code = $('code');
+      code.replaceChildren(...Object.entries(status.trees).map(([k, t]) => new Option(k === 'release' ? `Production · ${t.label} (latest tag)` : `main · ${sha7(t.sha)}`, k)));
+      const source = $('source');
+      source.replaceChildren(...[['staging', 'Staging CMS'], ['production', 'Production CMS']].map(([k, label]) => {
+        const o = new Option(status.sources[k]?.configured ? label : `${label} (not set up)`, k);
+        o.disabled = !status.sources[k]?.configured;
+        return o;
+      }));
+    }
+    $('code').value = status.code;
+    $('source').value = status.selected;
+    for (const el of [$('code'), $('source'), $('rebuild')]) el.disabled = busy;
+  }
+
+  function renderProgress() {
+    const busy = status.phase !== 'idle';
+    const showFailure = !busy && failed && !dismissed;
+    const show = firstSnapshot && (busy || showFailure);
+    $('progress').hidden = !show;
+    frame.hidden = !firstSnapshot || show;
+    $('show').hidden = busy;
+    $('err').hidden = !showFailure;
+    if (showFailure) $('err').textContent = `The build failed: ${failed}. The last good release is still serving.`;
+    $('title').textContent = busy ? 'Rebuilding the staging site' : 'The rebuild failed';
+    const triggers = busy && status.phase === 'requested' ? status.pending : status.lastBuild?.triggers;
+    $('why').textContent = (triggers?.length ? [...new Set(triggers.map(describe))].join(' · ') : '') + (status.lastBuild?.source ? ` — ${status.lastBuild.code || 'main'} code, ${status.lastBuild.source} content` : '');
+    const at = PHASES.findIndex(([k]) => k === status.phase);
+    const waited = status.lastBuild?.waitedFor;
+    $('phases').replaceChildren(...PHASES.filter(([k]) => k !== 'waiting-for-relay' || waited || status.phase === k).map(([k, label]) => {
+      const i = PHASES.findIndex(([x]) => x === k);
+      const li = document.createElement('li');
+      li.className = !busy ? '' : i < at ? 'done' : i === at ? 'active' : '';
+      const mark = Object.assign(document.createElement('span'), { className: 'mark' + (i === at && busy ? ' spin' : ''), textContent: !busy ? '·' : i < at ? '✓' : i === at ? '●' : '○' });
+      const text = k === 'waiting-for-relay' && waited ? `${label} (${Object.entries(waited).map(([c, v]) => `${c} ${v.slice(11, 19)}`).join(', ')})` : label;
+      li.append(mark, text);
+      return li;
+    }));
+    tick();
+  }
+
+  function tick() {
+    if (!status || status.phase === 'idle') { $('elapsed').textContent = ''; return; }
+    const secs = Math.round((Date.now() - (startedAt ?? Date.now())) / 1000);
+    const usual = status.serving?.durationMs ? ` · the last build took ${Math.round(status.serving.durationMs / 1000)}s` : '';
+    $('elapsed').textContent = `Elapsed ${secs}s${usual}`;
+  }
+
+  function renderFooter() {
+    const sv = status.serving;
+    $('f-serving').textContent = sv ? `Serving ${sv.label}${sv.label.includes(sha7(sv.sha)) ? '' : ` (${sha7(sv.sha)})`} · ${sv.source} content` : 'Nothing is serving yet';
+    $('f-release').textContent = sv && status.release ? `Release ${status.release}${sv.builtAt ? `, built ${ago(sv.builtAt)}${sv.durationMs ? ` in ${Math.round(sv.durationMs / 1000)}s` : ''}` : ''}` : '';
+    const last = status.lastBuild;
+    const f = $('f-last');
+    f.className = '';
+    if (status.phase !== 'idle') { f.textContent = `Building: ${PHASES.find(([k]) => k === status.phase)?.[1] ?? status.phase}`; f.className = 'warn'; }
+    else if (last?.ok === false) { f.textContent = 'Last build failed'; f.className = 'bad'; }
+    else if (last?.ok) { f.textContent = 'Last build succeeded'; f.className = 'ok'; }
+    else f.textContent = '';
+    $('f-warn').textContent = sv && status.phase === 'idle' && (sv.code !== status.code || sv.source !== status.selected) ? `Selected ${status.code} code and ${status.selected} content, but ${sv.code} and ${sv.source} are serving` : '';
+    // With nothing to report the footer steps aside, leaving the icon; it returns by itself when there is something to see.
+    const attention = status.phase !== 'idle' || last?.ok === false || Boolean($('f-warn').textContent) || !sv;
+    $('footer').hidden = !(attention || pinned);
+    const toggle = $('f-toggle');
+    toggle.className = status.phase !== 'idle' || $('f-warn').textContent ? 'warn' : last?.ok === false ? 'bad' : 'ok';
+    toggle.setAttribute('aria-expanded', String(!$('footer').hidden));
+    toggle.setAttribute('aria-label', `${$('footer').hidden ? 'Show' : 'Hide'} build status: ${$('f-last').textContent || 'idle'}`);
+    toggle.disabled = attention;
+  }
+
+  function apply(next) {
+    const busy = next.phase !== 'idle';
+    if (busy && !wasBusy) { startedAt = Date.now(); dismissed = false; failed = null; $('log').textContent = ''; }
+    const justFinished = wasBusy && !busy;
+    wasBusy = busy;
+    status = next;
+    if (justFinished) { if (next.lastBuild?.ok) loadFrame(); else failed = next.lastBuild?.error || 'unknown error'; }
+    renderControls(); renderProgress(); renderFooter(); renderTitle();
+  }
+
+  function addLog(line) {
+    const pre = $('log');
+    pre.append(line + '\n');
+    while (pre.childNodes.length > 300) pre.firstChild.remove();
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  $('code').addEventListener('change', (e) => post('select', { code: e.target.value }));
+  $('source').addEventListener('change', (e) => post('select', { source: e.target.value }));
+  $('rebuild').addEventListener('click', () => post('rebuild'));
+  $('f-toggle').addEventListener('click', () => { pinned = !pinned; renderFooter(); });
+  $('show').addEventListener('click', () => { dismissed = true; renderProgress(); });
+
+  function connect() {
+    const es = new EventSource(API + 'events');
+    es.addEventListener('snapshot', (e) => {
+      const { status: s, log } = JSON.parse(e.data);
+      $('log').textContent = log.join('\n') + (log.length ? '\n' : '');
+      const first = !firstSnapshot;
+      firstSnapshot = true;
+      wasBusy = s.phase !== 'idle';
+      if (wasBusy) startedAt = startedAt ?? Date.now();
+      status = s;
+      if (first && !wasBusy) loadFrame();
+      renderControls(); renderProgress(); renderFooter(); renderTitle();
+    });
+    es.addEventListener('status', (e) => apply(JSON.parse(e.data)));
+    es.addEventListener('done', (e) => apply(JSON.parse(e.data).status));
+    es.addEventListener('log', (e) => addLog(JSON.parse(e.data)));
+    es.addEventListener('open', () => { $('f-conn').textContent = ''; });
+    es.addEventListener('error', () => { $('f-conn').textContent = 'Reconnecting…'; });
+  }
+  connect();
+  setInterval(tick, 1000);
+  setInterval(() => status && renderFooter(), 30000);
+})();
+</script>
+</body>
+</html>
