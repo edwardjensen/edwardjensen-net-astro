@@ -2,9 +2,9 @@
 
 One image that builds the staging site from a content relay and serves it, for the CMS's staging stack on the application server. It replaced the GitHub-runner build and SSH upload that used to deploy staging (`deploy-staging.yml`, retired on 2026-10-30).
 
-It holds the site's source at the commit it was built from, its dependencies (including the lockfile's exact wrangler, and with it workerd) and `supervisor.mjs`. The site is served the same way as before: the site's own Cloudflare Worker, run in workerd by `wrangler dev --local`, so staging matches production's assets handling, redirects and 404 page.
+It holds the site's source at the commit it was built from (`main`), a second copy built from the newest production tag (`v*`, when the image was built with one), its dependencies (including the lockfile's exact wrangler, and with it workerd) and `supervisor.mjs`. The site is served the same way as before: the site's own Cloudflare Worker, run in workerd by `wrangler dev --local`, so staging matches production's assets handling, redirects and 404 page.
 
-`.github/workflows/staging-image.yml` builds it and pushes `ghcr.io/edwardjensen/edwardjensen-net-astro-staging:main` (and `:<sha>`) on every merge to `main` that changes the site. A pull request that changes the image's inputs builds it without pushing.
+`.github/workflows/staging-image.yml` builds it and pushes `ghcr.io/edwardjensen/edwardjensen-net-astro-staging:main` (and `:<sha>`) on every merge to `main` that changes the site, and again when a `v*` tag is pushed (still from `main`, with the new tag as the release tree). A pull request that changes the image's inputs builds it without pushing.
 
 ## What the supervisor does
 
@@ -12,6 +12,45 @@ It holds the site's source at the commit it was built from, its dependencies (in
 2. A build runs `npm run build` against the selected content source, writes the result to `releases/<timestamp>-<sha7>`, flips the `current` link in one step, restarts `wrangler dev` on it and keeps the newest three releases.
 3. A failed build changes nothing: the last good release keeps serving. If nothing has ever built, it retries every minute.
 4. Requests made close together (and the wait after each, `DEBOUNCE_MS`, which lets a publish commit first) share one build.
+
+## Code trees
+
+The build runs in one of two trees: `main` (the commit the image was built from) or `release` (the newest `v*` tag, fetched from GitHub into `/release` with its own dependencies at image build time, from `RELEASE_TAG` and `RELEASE_SHA`). Which tree builds is selected the same way as the content source: it is sticky (`source.json` keeps `source` and `code`), a restart keeps it, and every build, including one a CMS publish starts, uses it. A release folder records which tree built it in `release.json`, and that tree's wrangler serves it. An image built without `RELEASE_TAG` has only `main`.
+
+The site title and footer show the tree (`main-<sha7>` or the tag) and the content source.
+
+## The viewer
+
+The viewer is the staging site's front door. A browser that opens any page of the site (a top-level navigation, which it marks with `Sec-Fetch-Dest: document`) gets the viewer at that same URL: a top bar to choose the site code and the content source and to start a rebuild, the site in a frame, and a footer that collapses to a status icon when there is nothing to report. The frame asks for the same URL as an iframe and gets the site itself, and the address bar follows the frame, so deep links, reloads and bookmarks keep working. Feed readers, assets, `curl` and anything else that sends no document header get the site. `?__raw=1` on a URL shows that page on its own, and the viewer's top bar links to the current page that way. Responses carry `Vary: Sec-Fetch-Dest` so a browser never reuses one kind for the other.
+
+While a build runs (including one a CMS publish starts), the frame is replaced by its progress: why it started, the phase, elapsed time, and the build output. When it finishes the frame returns to the same page; a failed build shows its error until dismissed, and the last good release keeps serving. The choices are global (not per viewer) and apply to later CMS publishes too. The viewer's POSTs accept only same-origin JSON.
+
+The site itself is wrangler on `WRANGLER_PORT` (loopback only), behind a small front proxy on the site port that passes everything through unchanged, with a self-refreshing "rebuilding" page while wrangler is down. The viewer's own routes use `/_viewer/` and `/metrics`; the site has no pages by those names.
+
+| Route (site port) | What it does |
+| --- | --- |
+| `GET /_viewer/status` | The same snapshot as the control port's `GET /status`, without the token. |
+| `GET /_viewer/events` | Server-sent events: a `snapshot` (status and recent output) on connect, then `status` on each phase change, `log` per output line, and `done`. |
+| `POST /_viewer/select` | Same-origin JSON `{"code"?, "source"?}`. |
+| `POST /_viewer/rebuild` | Same-origin JSON. Rebuilds from the selection. |
+
+## Metrics
+
+`GET /metrics` on the site port serves Prometheus's text format, unauthenticated like the rest of the site port (the stack keeps staging reachable only from the internal network). Every metric is defined in `metrics.mjs`, with the `ejnet_staging_` prefix and label values that come only from the lists in that file: anything else is counted as `other`, so a request can't create series.
+
+| Metric | Answers |
+| --- | --- |
+| `ejnet_staging_info` | Which image: the `main` commit, the release tag and Node version (always 1). |
+| `ejnet_staging_build_requests_total{trigger}`, `ejnet_staging_cms_pushes_total{collection}` | What is asking for rebuilds. Requests close together share one build. |
+| `ejnet_staging_builds_total{code,source,result}`, `ejnet_staging_build_failures_total{reason}` | How builds end, and why they fail (`relay_timeout`, `build_failed`, `other`). |
+| `ejnet_staging_build_duration_seconds`, `ejnet_staging_relay_wait_seconds` | How long builds take, and how long the freshness gate waits (histograms). |
+| `ejnet_staging_build_phase{phase}`, `ejnet_staging_build_queued` | What it is doing now. |
+| `ejnet_staging_selected_code`, `ejnet_staging_selected_source`, `ejnet_staging_serving_code`, `ejnet_staging_serving_source` | What is selected against what is serving (one-hot). They differ after a failed switch. |
+| `ejnet_staging_last_build_success`, `…_last_build_finished_timestamp_seconds`, `…_last_build_success_timestamp_seconds`, `…_release_built_timestamp_seconds` | The last build and how old the serving release is. |
+| `ejnet_staging_site_up`, `ejnet_staging_background_task_up{task}`, `ejnet_staging_wrangler_unexpected_exits_total`, `ejnet_staging_proxy_unavailable_total` | Whether the site answers. |
+| `ejnet_staging_proxy_requests_total{handler,code}`, `ejnet_staging_control_requests_total{route,code}`, `ejnet_staging_viewers` | Traffic, by handler or route and the class of the answer. |
+| `ejnet_staging_container_memory_bytes`, `…_memory_peak_bytes`, `…_memory_limit_bytes` | The container's memory from its cgroup, where the host reports it. Builds are the peaks. |
+| `process_*` | The supervisor's own CPU, memory and start time. |
 
 ## Content sources
 
@@ -36,10 +75,11 @@ Port `8080` is for the stack's own network only. Never give it a public router. 
 | --- | --- |
 | `POST /build` | Builds from the selected source. The CMS calls this after a publish, with `{"action": …, "client_payload": {"collection": …, "relayVersion": …}}`. A `source` in the query or body (`?source=production`) builds from that source this once and leaves the selection alone. |
 | `POST /source` | Body `{"source":"staging"}` or `{"source":"production"}`. Selects the source, keeps it, and builds from it. |
-| `GET /status` | The selected source, the source and release last built, the commit, the last build (its source, result, error and the relay versions it waited for), and which sources are configured. |
+| `POST /select` | Body `{"code":"main"\|"release","source":"staging"\|"production"}`, either optional. Selects, keeps and builds. |
+| `GET /status` | The selected source and code, the phase (`idle`, `requested`, `waiting-for-relay`, `building`, `publishing` or `restarting`), what is serving (`serving`: tree, commit, source, when and how long), the trees available, requests waiting for the next build (`pending`), the source and release last built, the commit, the last build (its source, result, error and the relay versions it waited for), and which sources are configured. |
 | `GET /healthz` | Answers `{"ok":true}` without a token. |
 
-What calls these routes is left open: this is only the door.
+A request that arrives while a build runs is never dropped: the follow-up build keeps its relay gates and its reason (a CMS publish stays a CMS publish in the viewer). What calls these routes is left open: this is only the door.
 
 ## Settings
 
@@ -52,7 +92,9 @@ What calls these routes is left open: this is only the door.
 | `PUBLIC_INTAKE_SUBMIT_URL`, `PUBLIC_HCAPTCHA_SITEKEY` | Optional. Give the `/hi/{tag}/` event pages their intake forms. |
 | `SITE_TIMEZONE` | For the build date shown on the site (default UTC). |
 | `DATA_DIR` | Where `releases/`, `current` and `source.json` live (default `/srv/site`). Mount a volume here, or the selection is lost on a restart. |
-| `SITE_PORT` / `CONTROL_PORT` | The site (default 8787) and the control port (default 8080). |
+| `SITE_PORT` / `CONTROL_PORT` | The site and viewer (default 8787) and the control port (default 8080). |
+| `WRANGLER_PORT` | Where wrangler listens behind the proxy, on loopback (default 8788). |
+| `RELEASE_TAG` / `RELEASE_SHA` / `RELEASE_DIR` | Set by the Dockerfile when a release tree is present (`/release`). |
 | `DEBOUNCE_MS` / `KEEP_RELEASES` / `RELAY_WAIT_MS` | Defaults 5000, 3 and 180000. |
 
 The image runs as any uid, chosen by the stack: what it writes is `DATA_DIR` and `HOME` (`/cache`).

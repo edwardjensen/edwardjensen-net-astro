@@ -12,6 +12,8 @@ on:
       - 'docs/**'
       - '*.md'
       - 'cloudflare-workers/**'
+    # A new production tag rebuilds the image from main with that tag as its release tree. Tag pushes ignore the path filters above.
+    tags: ['v*']
   pull_request:
     branches: [main]
     paths:
@@ -39,6 +41,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # Always main, even for a tag push: the image follows main, and the tag becomes its release tree.
+          ref: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'main' || github.sha }}
+          fetch-depth: 0
+
+      - name: Find the newest production tag
+        id: release
+        run: |
+          tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$([ -n "$tag" ] && git rev-list -n 1 "$tag")" >> "$GITHUB_OUTPUT"
+
+      - name: Read the main commit
+        id: main
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Read the Node version
         id: node
@@ -64,9 +81,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ghcr.io/edwardjensen/edwardjensen-net-astro-staging:main
-            ghcr.io/edwardjensen/edwardjensen-net-astro-staging:${{ github.sha }}
+            ghcr.io/edwardjensen/edwardjensen-net-astro-staging:${{ steps.main.outputs.sha }}
           build-args: |
             NODE_VERSION=${{ steps.node.outputs.version }}
-            GIT_SHA=${{ github.sha }}
+            GIT_SHA=${{ steps.main.outputs.sha }}
+            RELEASE_TAG=${{ steps.release.outputs.tag }}
+            RELEASE_SHA=${{ steps.release.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
