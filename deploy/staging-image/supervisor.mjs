@@ -8,9 +8,9 @@
 //
 // Two code trees can be built: `main` (the commit this image was built from, in /app) and `release` (the newest production tag, fetched into /release when the image was built). The selection of code and of content source is sticky together (POST /select changes either or both; POST /source changes only the source). Every build reports its phase (requested, waiting-for-relay, building, publishing, restarting) and its output on `bus`, and why it started (a CMS publish, a selection, a manual request), which the viewer in front of the site shows.
 //
-// The site is served through a small front proxy on SITE_PORT: wrangler listens on WRANGLER_PORT (loopback only) and everything but /__staging/ is passed to it unchanged, with a "rebuilding" page while it is down. /__staging/ is the viewer: a page that frames the site, switches the code tree and content source, starts a rebuild, and shows a build's progress live (server-sent events). Its API calls this process directly, so the control token never reaches a browser; its POSTs accept only same-origin JSON.
+// The site is served through a small front proxy on SITE_PORT: wrangler listens on WRANGLER_PORT (loopback only). The viewer is the front door: a browser opening any page (a top-level navigation, `Sec-Fetch-Dest: document`) gets the viewer, a page around the site that switches the code tree and content source, starts a rebuild, and shows a build's progress live (server-sent events); the viewer's frame asks for the same URL as an iframe and gets the site, unchanged, with a "rebuilding" page while wrangler is down. Feed readers, assets, curl and the like send no document header and get the site. `?__raw=1` shows a page on its own. The viewer's API (/_viewer/) calls this process directly, so the control token never reaches a browser; its POSTs accept only same-origin JSON.
 //
-// Prometheus metrics are served at GET /__staging/metrics on the site port (metrics.mjs): builds, their duration and failures, the relay wait, what is selected and serving, the container's memory, and the proxy's traffic.
+// Prometheus metrics are served at GET /metrics on the site port (metrics.mjs): builds, their duration and failures, the relay wait, what is selected and serving, the container's memory, and the proxy's traffic.
 //
 // Settings (environment):
 //   SITE_BUILD_TOKEN   required. The bearer token POST /build, POST /source and GET /status must present.
@@ -500,11 +500,12 @@ function sameOriginJson(req) {
   }
 }
 
-const REBUILDING_PAGE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="3"><title>Rebuilding</title><body style="font:16px system-ui;margin:3rem 1rem;text-align:center"><p>The staging site is rebuilding. This page will refresh.</p><p><a href="/__staging/">Open the viewer</a></p>';
+const REBUILDING_PAGE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="3"><title>Rebuilding</title><body style="font:16px system-ui;margin:3rem 1rem;text-align:center"><p>The staging site is rebuilding. This page will refresh.</p>';
 
 function proxyToSite(req, res) {
   const upstream = httpRequest({ host: '127.0.0.1', port: WRANGLER_PORT, method: req.method, path: req.url, headers: req.headers }, (answer) => {
-    res.writeHead(answer.statusCode, answer.headers);
+    // The same URL is the viewer for a page load and the site for the viewer's frame, so caches must tell them apart.
+    res.writeHead(answer.statusCode, { ...answer.headers, vary: [answer.headers.vary, 'Sec-Fetch-Dest'].filter(Boolean).join(', ') });
     answer.pipe(res);
   });
   upstream.on('error', () => {
@@ -539,9 +540,9 @@ async function viewerApi(req, res, route) {
     res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify(body));
   };
-  if (route === 'GET /__staging/api/status') return send(200, status());
-  if (route === 'GET /__staging/api/events') return streamEvents(req, res);
-  if (route !== 'POST /__staging/api/select' && route !== 'POST /__staging/api/rebuild') return send(404, { error: 'Not found' });
+  if (route === 'GET /_viewer/status') return send(200, status());
+  if (route === 'GET /_viewer/events') return streamEvents(req, res);
+  if (route !== 'POST /_viewer/select' && route !== 'POST /_viewer/rebuild') return send(404, { error: 'Not found' });
   if (!sameOriginJson(req)) return send(403, { error: 'Same-origin JSON requests only' });
   let body;
   try {
@@ -549,7 +550,7 @@ async function viewerApi(req, res, route) {
   } catch {
     return send(400, { error: 'Body must be JSON' });
   }
-  if (route === 'POST /__staging/api/rebuild') {
+  if (route === 'POST /_viewer/rebuild') {
     log('rebuild requested from the viewer');
     request(null, { kind: 'viewer' });
     return send(202, { accepted: true });
@@ -559,16 +560,19 @@ async function viewerApi(req, res, route) {
 }
 
 // The front door: the viewer, its API, and the site behind them.
-const handlerOf = (pathname) => {
-  if (pathname === '/__staging/metrics') return 'metrics';
-  if (pathname.startsWith('/__staging/api/')) return bound(`api_${pathname.slice('/__staging/api/'.length)}`, HANDLERS);
-  return pathname === '/__staging' || pathname === '/__staging/' ? 'viewer' : 'site';
+// A browser opening a page on its own, as opposed to the viewer's frame, a feed reader, an asset or curl.
+const opensPage = (req) => ['GET', 'HEAD'].includes(req.method) && req.headers['sec-fetch-dest'] === 'document' && /text\/html/.test(req.headers.accept ?? '') && !/[?&]__raw=1(&|$)/.test(req.url ?? '');
+
+const handlerOf = (req, pathname) => {
+  if (pathname === '/metrics') return 'metrics';
+  if (pathname.startsWith('/_viewer/')) return bound(`api_${pathname.slice('/_viewer/'.length)}`, HANDLERS);
+  return opensPage(req) ? 'viewer' : 'site';
 };
 
 const front = createServer((req, res) => {
   const pathname = req.url?.split('?')[0] ?? '/';
-  res.on('close', () => m.proxyRequests.inc({ handler: handlerOf(pathname), code: statusClass(res.statusCode) }));
-  if (pathname === '/__staging/metrics' && req.method === 'GET') {
+  res.on('close', () => m.proxyRequests.inc({ handler: handlerOf(req, pathname), code: statusClass(res.statusCode) }));
+  if (pathname === '/metrics' && req.method === 'GET') {
     return render().then(
       (text) => {
         res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8', 'cache-control': 'no-store' });
@@ -581,22 +585,18 @@ const front = createServer((req, res) => {
       },
     );
   }
-  if (pathname === '/__staging') {
-    res.writeHead(302, { location: '/__staging/' });
-    return res.end();
-  }
-  if (pathname.startsWith('/__staging/api/')) {
+  if (pathname.startsWith('/_viewer/')) {
     return viewerApi(req, res, `${req.method} ${pathname}`).catch((err) => {
       log(`viewer ${req.method} ${pathname} failed: ${err.message ?? err}`);
       if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'Request failed' }));
     });
   }
-  if (pathname === '/__staging/' && req.method === 'GET') {
+  if (opensPage(req)) {
     return readFile(VIEWER_FILE).then(
       (html) => {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(html);
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', vary: 'Sec-Fetch-Dest' });
+        res.end(req.method === 'HEAD' ? undefined : html);
       },
       () => {
         res.writeHead(500, { 'content-type': 'text/plain' });

@@ -21,21 +21,22 @@ The site title and footer show the tree (`main-<sha7>` or the tag) and the conte
 
 ## The viewer
 
-The site is served through a small front proxy on the site port, and `/__staging/` is a viewer around it: a top bar to choose the site code and the content source and to start a rebuild, the site in a frame, and a footer with what is serving and how the last build went. While a build runs (including one a CMS publish starts), the frame is replaced by its progress: why it started, the phase, elapsed time, and the build output. When it finishes the frame returns to the same page; a failed build shows its error until dismissed, and the last good release keeps serving. The choices are global (not per viewer) and apply to later CMS publishes too. The viewer's POSTs accept only same-origin JSON.
+The viewer is the staging site's front door. A browser that opens any page of the site (a top-level navigation, which it marks with `Sec-Fetch-Dest: document`) gets the viewer at that same URL: a top bar to choose the site code and the content source and to start a rebuild, the site in a frame, and a footer that collapses to a status icon when there is nothing to report. The frame asks for the same URL as an iframe and gets the site itself, and the address bar follows the frame, so deep links, reloads and bookmarks keep working. Feed readers, assets, `curl` and anything else that sends no document header get the site. `?__raw=1` on a URL shows that page on its own, and the viewer's top bar links to the current page that way. Responses carry `Vary: Sec-Fetch-Dest` so a browser never reuses one kind for the other.
 
-Everything but `/__staging/` goes to wrangler (on `WRANGLER_PORT`, loopback only) unchanged, with a self-refreshing "rebuilding" page while it is down.
+While a build runs (including one a CMS publish starts), the frame is replaced by its progress: why it started, the phase, elapsed time, and the build output. When it finishes the frame returns to the same page; a failed build shows its error until dismissed, and the last good release keeps serving. The choices are global (not per viewer) and apply to later CMS publishes too. The viewer's POSTs accept only same-origin JSON.
+
+The site itself is wrangler on `WRANGLER_PORT` (loopback only), behind a small front proxy on the site port that passes everything through unchanged, with a self-refreshing "rebuilding" page while wrangler is down. The viewer's own routes use `/_viewer/` and `/metrics`; the site has no pages by those names.
 
 | Route (site port) | What it does |
 | --- | --- |
-| `GET /__staging/` | The viewer page. |
-| `GET /__staging/api/status` | The same snapshot as the control port's `GET /status`, without the token. |
-| `GET /__staging/api/events` | Server-sent events: a `snapshot` (status and recent output) on connect, then `status` on each phase change, `log` per output line, and `done`. |
-| `POST /__staging/api/select` | Same-origin JSON `{"code"?, "source"?}`. |
-| `POST /__staging/api/rebuild` | Same-origin JSON. Rebuilds from the selection. |
+| `GET /_viewer/status` | The same snapshot as the control port's `GET /status`, without the token. |
+| `GET /_viewer/events` | Server-sent events: a `snapshot` (status and recent output) on connect, then `status` on each phase change, `log` per output line, and `done`. |
+| `POST /_viewer/select` | Same-origin JSON `{"code"?, "source"?}`. |
+| `POST /_viewer/rebuild` | Same-origin JSON. Rebuilds from the selection. |
 
 ## Metrics
 
-`GET /__staging/metrics` on the site port serves Prometheus's text format, unauthenticated like the rest of the site port (the stack keeps staging reachable only from the internal network). It sits under `/__staging/` so it never shadows a path of the site's own. Every metric is defined in `metrics.mjs`, with the `ejnet_staging_` prefix and label values that come only from the lists in that file: anything else is counted as `other`, so a request can't create series.
+`GET /metrics` on the site port serves Prometheus's text format, unauthenticated like the rest of the site port (the stack keeps staging reachable only from the internal network). Every metric is defined in `metrics.mjs`, with the `ejnet_staging_` prefix and label values that come only from the lists in that file: anything else is counted as `other`, so a request can't create series.
 
 | Metric | Answers |
 | --- | --- |

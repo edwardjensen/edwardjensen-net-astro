@@ -33,6 +33,7 @@
   #f-toggle { position: fixed; right: .75rem; bottom: .4rem; width: 1.75rem; height: 1.75rem; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--panel); line-height: 1; opacity: .75; }
   #f-toggle:hover, #f-toggle:focus-visible { opacity: 1; }
   .note { color: var(--muted); font-size: 12px; }
+  a.note { color: var(--muted); }
   main { flex: 1; min-height: 0; position: relative; }
   iframe { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
   #progress { position: absolute; inset: 0; overflow: auto; padding: 1.5rem 1rem; }
@@ -57,6 +58,8 @@
   <label>Site code <select id="code"></select></label>
   <label>CMS content <select id="source"></select></label>
   <button id="rebuild" class="primary" type="button">Rebuild</button>
+  <span class="spacer"></span>
+  <a id="alone" class="note" href="?__raw=1" target="_blank" rel="noopener">Open this page on its own ↗</a>
 </header>
 <main>
   <iframe id="site" title="Staging site" hidden></iframe>
@@ -84,7 +87,7 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const API = '/__staging/api/';
+  const API = '/_viewer/';
   const PHASES = [
     ['requested', 'Request received'],
     ['waiting-for-relay', 'Waiting for the content relay'],
@@ -94,18 +97,15 @@
   ];
   let pinned = false, status = null, dismissed = false, failed = null, startedAt = null, firstSnapshot = false, wasBusy = false, optionsFor = '';
 
-  // The page inside the frame, kept in this page's address so a reload or a finished rebuild returns to it.
-  const wanted = new URLSearchParams(location.search).get('path') || '/';
-  let path = /^\/(?!\/|__staging)/.test(wanted) ? wanted : '/';
+  // This page's address is the site page being viewed: the frame asks for the same URL and gets the site, and its address is kept up as the frame navigates.
+  let path = location.pathname + location.search + location.hash;
   const frame = $('site');
   frame.addEventListener('load', () => {
     try {
       const { pathname, search, hash } = frame.contentWindow.location;
-      if (pathname.startsWith('/__staging')) return;
       path = pathname + search + hash;
-      const u = new URL(location.href);
-      u.searchParams.set('path', path);
-      history.replaceState(null, '', u);
+      $('alone').href = pathname + (search ? `${search}&` : '?') + '__raw=1' + hash;
+      history.replaceState(null, '', path);
     } catch { /* not same-origin; keep the last path */ }
     borrowPage();
   });
