@@ -51,7 +51,7 @@ All workflows are in `.github/workflows/`. Secrets are managed via GitHub Action
 
 ### PR Checks (`pr-checks.yml`)
 
-Runs on every pull request to `main`:
+Runs on every pull request to `main` or to a `hotfix/**` branch:
 
 1. **Detect changes** — skips build/a11y for docs-only PRs
 2. **Build** — generates `buildinfo.ts`, runs `npm run build`
@@ -68,9 +68,9 @@ The earlier GitHub-driven staging was retired on 2026-10-30: `deploy-staging.yml
 
 Triggers on version tag push (`v*.*.*`) or manual dispatch:
 
-1. **Validate tag** — semantic version format, on main branch
-2. **Build** — generate buildinfo, build site
-3. **Deploy** — upload to production Cloudflare Worker
+1. **Validate tag** — semantic version format, and on `main` or the next patch on a hotfix branch (`.github/scripts/validate-release-tag.sh`; see "Hotfixes" in `CLAUDE.md`)
+2. **Build** — checks out **the tag** (never `main`), generates buildinfo with the tagged commit, builds the site
+3. **Deploy** — uploads that build to the production Cloudflare Worker
 4. **Release** — create GitHub Release
 
 ### CMS Republish (`republish-prod.yml`)

@@ -76,7 +76,7 @@ precisely so inaccessible markup can't reach the site.
 
 **The expected flow:**
 
-1. Branch from `main` — `feature/X`, `fix/X`, `chore/X`, or `docs/X`.
+1. Branch from `main` — `feature/X`, `fix/X`, `chore/X`, or `docs/X`. (The one exception is a production hotfix, which branches from a release tag as `hotfix/<what-it-fixes>-vX.Y.Z`: see "Hotfixes" under "Deployment".)
 2. Commit the work there, including documentation updates in the *same* change (this file and
    `docs/`, per the rule at the top).
 3. Open a PR to `main` and let the checks run.
@@ -259,9 +259,37 @@ See `docs/environment.md` for the full list of required secrets and variables.
 - **Staging:** no GitHub workflow deploys it. `staging-image.yml` builds `deploy/staging-image/` into one image, `edwardjensen-net-astro-staging:main`, on every merge to `main` that changes the site, and the CMS's staging stack follows that tag. The image builds the site from a content relay, the staging relay by default or production's, whichever is selected (the selection is sticky: `POST /source` changes it and a restart keeps it), and serves it with `wrangler dev` in workerd, so staging matches production's entry point, assets handling, trailing-slash redirects and 404 page. Before a staging publish rebuilds, the builder waits for the staging relay to reach the version the publish pushed, as production's republish does. The image also carries a second copy of the site built from the newest production tag; which tree builds (`main` or that tag) is selected and kept the same way as the source, and the site is served through a front proxy, and a browser opening any page gets a viewer at that same URL (choose code and content, rebuild, watch a build's progress) with the site in a frame (`?__raw=1` shows a page on its own). Its control port (never routed publicly) takes `POST /build`, `POST /source`, `POST /select` and `GET /status`. It serves Prometheus metrics at `/metrics` on the site port (`metrics.mjs`; labels are bounded by lists in that file, so a request can't create series). See its README. The earlier GitHub-driven staging (`deploy-staging.yml` over Tailscale SSH, `deploy/staging-server/`, the nightly Cloudflare teardown) was retired on 2026-10-30; don't reintroduce a staging deploy that needs a tailnet credential.
 - **Environment protection:** `production` accepts only `main` and `v*` tags, and creating `v*` tags is limited to repo admins. Don't add `environment:` to a `pull_request` job: PR refs are rejected by those policies. Keep PR checks on repository-level values.
 - **No Tailscale OAuth secrets:** the one workflow that joins the tailnet (the hi-redirector deploy) uses workload identity federation: `vars.TS_OAUTH_CLIENT_ID` / `vars.TS_AUDIENCE` / `vars.TS_TAGS` on its GitHub environment and `id-token: write` on the job. Don't reintroduce `oauth-secret:`. The hi-redirector only needs network access to the CMS, so its production tags carry no deploy group.
-- **Production:** push a version tag (`vX.Y.Z`)
+- **Production:** push a version tag (`vX.Y.Z`) on `main`, or the next patch on a hotfix branch (below). `deploy-prod-site.yml` builds and deploys **the tagged commit**, never `main`'s head, and records that commit in the build info
 - **Republish:** CMS webhook or manual dispatch rebuilds from the latest production tag
 - Target is Cloudflare Workers with static assets (not Pages)
 - The Astro Cloudflare adapter generates `dist/server/wrangler.json` — CI deploys using that config
+
+### Version numbers
+
+Release tags are this site's own numbering. They don't follow, and say nothing about, Astro's version: an Astro major upgrade doesn't make an X release, and v15 isn't Astro 15.
+
+| Part | When |
+|------|------|
+| **X** (major) | A new edition of the site as a whole, the kind a reader notices: a new design. It is major for its size, **not** because it breaks things: URLs, feeds and the content contract are meant to survive it |
+| **Y** (minor) | A new feature or page type, or a change to what the site reads from its content source |
+| **Z** (patch) | A fix with no new feature: a dependency bump, a bug fix, a build or deploy change. The only kind of release a hotfix branch may cut |
+
+### Hotfixes
+
+A **hotfix** is a fix production can't wait for until the next release from `main`, because `main` carries work that isn't ready to ship (a redesign in progress, for example): a security fix in a dependency, or a bug in the running release. It is always a **Z** release, cut from a branch that starts at the release production runs.
+
+1. **Branch from the release tag**, named for what it fixes and the version it patches: `git switch -c hotfix/feed-dates-v14.3.1 v14.3.1`, then push the branch.
+2. **Open the fix as a PR into that branch** (not `main`). `pr-checks.yml` runs on it as on `main`, the pa11y gate included. A Dependabot security PR targets `main` only (its `target-branch` setting applies to version updates, not security updates), so let it merge to `main` as usual and cherry-pick the same change into a PR to the hotfix branch.
+3. **Test it** with a local production build of the branch (`npm run build`, then `npm run preview`): staging builds `main`, so it doesn't show the branch until it is tagged.
+4. **Tag the next patch on the branch** (`v14.3.2` on `hotfix/feed-dates-v14.3.1`) and push the tag. `deploy-prod-site.yml` runs `.github/scripts/validate-release-tag.sh`, which accepts a tag that isn't on `main` only when the branch is named `hotfix/<what-it-fixes>-vX.Y.Z`, `vX.Y.Z` is the **newest** release (a hotfix patches what production runs, never an older line), and the new tag is a later patch of the same `X.Y` that contains it. Anything else fails with the reason. It then builds and deploys the tag.
+5. **Bring the fix to `main`** (a cherry-pick PR) if it isn't there already, so the next release from `main` doesn't lose it. Nothing checks this; it's part of the hotfix.
+
+A second hotfix on the same line branches from the first one's tag. `republish-prod.yml` rebuilds the newest tag by version number, so a hotfix tag is what content publishes rebuild from until the next release, which is why a hotfix may only patch the newest release.
+
+**Rolling back:** running `deploy-prod-site.yml` by hand for the previous tag redeploys it, but only until the next content publish, because the republish rebuilds the newest tag. A lasting rollback is a new patch tag that reverts the change.
+
+**The workflow comes from the tag.** A `v*` tag runs the `deploy-prod-site.yml` in the tagged commit, so a hotfix branch can only be released from a base tag whose workflow already accepts hotfix tags (and deploys the tag rather than `main`). Tags before this change don't; a branch cut from one must first cherry-pick this change.
+
+**Branch protection:** a ruleset protects `hotfix/**` as it does `main`: changes land only by PR, with `PR Status` passing, and branches can't be force-pushed.
 
 **`@astrojs/cloudflare` and `wrangler` are version-coupled — do not bump either without verifying first.** `@astrojs/cloudflare` bundles `@cloudflare/vite-plugin`, whose version controls Astro's build-mode auto-detection (`"server"` vs `"static"`) and whether the generated Wrangler config includes `legacy_env` — the deploy-time `wrangler` binary must be new enough to accept that field or the deploy fails. A routine minor bump of `@astrojs/cloudflare` broke both staging and production this way in September 2026 (see README.md's "Manually managed version pins" section and PR #38/#39). Before merging a Dependabot bump to either package, run a full local build and `wrangler deploy --dry-run` using `npm install` (not `npm ci`, which can mask a real peer-dependency conflict).
