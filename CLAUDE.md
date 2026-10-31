@@ -222,7 +222,8 @@ keys, or secrets may ever be committed.
   for `npm run dev`. To read another source, use a content-source mode (`npm run dev:production-relay`,
   `dev:staging-relay`, `dev:staging-direct`, `dev:local-cms`; each has a `build:` twin): the mode's
   committed `.env.<mode>` holds public values only and the private ones go in the git-ignored
-  `.env.<mode>.local` (details in `docs/environment.md`). `npm run check:source` validates whichever
+  `.env.<mode>.local`, or come from 1Password at launch through a git-ignored `.env.<mode>.op` of
+  `op://` references for the two relay modes (details in `docs/environment.md`). `npm run check:source` validates whichever
   source is configured. Optionally `PUBLIC_INTAKE_SUBMIT_URL` and `PUBLIC_HCAPTCHA_SITEKEY` to render the event forms
   (hCaptcha publishes a test sitekey that works locally)
 - CI/CD: GitHub Actions secrets and variables. **A value is a variable only if it is already
