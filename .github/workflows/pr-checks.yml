@@ -7,7 +7,8 @@ name: PR Checks
 
 on:
   pull_request:
-    branches: [main]
+    # main, and hotfix branches (hotfix/<what-it-fixes>-vX.Y.Z, cut from a release tag; see CLAUDE.md "Hotfixes"), so a hotfix gets the same checks, the pa11y gate included.
+    branches: [main, 'hotfix/**']
     types: [opened, synchronize, reopened]
 
 permissions:
