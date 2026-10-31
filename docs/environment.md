@@ -32,8 +32,8 @@ The client reads any source that serves the `/v2` list contract: the content rel
 | Script | Reads | Where its settings live |
 |--------|-------|-------------------------|
 | `npm run dev` | whatever `.env.local` says | `.env.local` (unchanged) |
-| `npm run dev:production-relay` | the production relay | `.env.production-relay` (committed). Your read key goes in `.env.production-relay.local`; without that file the key from `.env.local` is used |
-| `npm run dev:staging-relay` | the staging relay | URL and read key in `.env.staging-relay.local` |
+| `npm run dev:production-relay` | the production relay | `.env.production-relay` (committed). Your read key comes from `.env.production-relay.op` (1Password, below) or goes in `.env.production-relay.local`; without either, the key from `.env.local` is used |
+| `npm run dev:staging-relay` | the staging relay | URL and read key from `.env.staging-relay.op` (1Password, below) or in `.env.staging-relay.local` |
 | `npm run dev:staging-direct` | a staging CMS's own `/api/v2` (no relay, no key) | URL in `.env.staging-direct.local` |
 | `npm run dev:local-cms` | a CMS on this machine at `http://localhost:3000/api` | `.env.local-cms` (committed) |
 
@@ -41,6 +41,7 @@ Each `dev:*` script has a `build:*` twin for running `astro preview` against tha
 
 - **Committed mode files hold public values only.** The production relay's URL is public; the others are left blank, and their `.local` files are git-ignored. Never put a staging URL or any key in a committed file.
 - **A mode file that leaves `CONTENT_RELAY_READ_KEY=` blank on purpose** keeps the production key in `.env.local` from being sent to a different host.
+- **Keys from 1Password, never on disk.** For the two relay modes, a git-ignored `.env.<mode>.op` holding 1Password secret references (`CONTENT_RELAY_READ_KEY=op://<vault>/<item>/<field>`, and `CONTENT_RELAY_URL` the same way for staging) makes the `dev:` and `build:` scripts run under `op run` ([`scripts/with-op-env.sh`](../scripts/with-op-env.sh)), which fetches the values at launch. It needs the 1Password CLI signed in through the desktop app. Without the file, the scripts run as before. `npm run check:source` isn't wrapped: run it as `op run --env-file=.env.<mode>.op -- npm run check:source -- --mode <mode>`.
 - **`--mode` changes only `import.meta.env.MODE`.** `astro build --mode staging-relay` is still an optimized production build (`import.meta.env.PROD` is true), so code must not branch on `MODE === "production"`.
 - **Check a source before building:** `npm run check:source` reads every collection from the configured source and fails with a list of problems (unreachable, key refused, empty, drafts, missing fields). Add `-- --mode staging-relay` to check a mode. It runs in PR checks before the build.
 
