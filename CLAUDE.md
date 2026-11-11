@@ -116,6 +116,7 @@ This applies to routing, content collections, integrations, configuration, and d
 |------|---------|
 | `src/lib/payload.ts` | Content relay API client — auto-pagination (100/request), 5 retries with exponential backoff, build-time caching, `X-Read-Key` auth, permalink helpers |
 | `src/lib/feed-utils.ts` | Shared helpers for the RSS/JSON feed endpoints |
+| `public/assets/js/xslt-polyfill.min.js` | Vendored [xslt-polyfill](https://github.com/mfreed7/xslt_polyfill) 1.0.36 (BSD-3-Clause; licence in `xslt-polyfill.LICENSE` beside it). `rssHeader()` loads it from each RSS feed so the readable page (`public/assets/css/feed-style.xsl`) keeps working in browsers without native XSLT (Chrome 158 stable, 2026-11-17). Production serves the feeds as `application/xml`, which the polyfill needs; a browser with native XSLT transforms the feed before the script can run, and feed readers ignore the element. It isn't an npm dependency, so Dependabot doesn't track it: to update, copy `xslt-polyfill.min.js` from the npm package and update the version here and in `feed-utils.ts` |
 | `src/config.ts` | Site-wide constants: canonical URL, title, author, feed limits, page sizes, search debounce |
 | `src/types/payload.ts` | TypeScript interfaces for all CMS content types |
 | `src/lib/intake.ts` | Build-time helpers for the event intake forms: reads a share token's claims, the field table and caps, the `PUBLIC_*` build config |

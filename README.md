@@ -32,7 +32,7 @@ src/
   types/          # TypeScript type definitions for CMS data
   config.ts       # Site-wide constants (URL, title, feed limits, page sizes)
 public/
-  assets/         # Client-side JS (photo gallery) and the feed stylesheet
+  assets/         # Client-side JS (photo gallery, vendored XSLT polyfill) and the feed stylesheet
 cloudflare-workers/
   hi-redirector/  # Short URL redirect service (hi.edwardjensen.net)
   maps-proxy/     # Google Maps Static API proxy
